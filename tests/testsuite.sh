@@ -50,6 +50,7 @@ cleanup() {
   echo "Cleaning up test archives..."
   rm -f test_*.zip test_*.tar test_*.tar.gz *.txt *.unknown *.tgz test_magic.*
   rm -rf test_extract
+  rm -rf test_extract_*
   mkdir -p test_extract
 }
 
@@ -294,6 +295,116 @@ run_test "Magic Bytes - Fallback to extension for new file" \
   "rm -f test_new_file.tar" \
   "$ALCHEMIST -v -f test_new_file.tar add file.txt --content 'New TAR' 2>&1 | grep -q 'Auto-detected archive type: tar' && \
    tar -tvf test_new_file.tar | grep -q 'file.txt'"
+
+
+# Basic extraction test for ZIP
+run_test "Extract - Basic ZIP extraction" \
+  "$ALCHEMIST -v -f test_extract_basic.zip add file1.txt --content 'File 1 content' && \
+   $ALCHEMIST -v -f test_extract_basic.zip add dir/file2.txt --content 'File 2 content' && \
+   mkdir -p test_extract_basic && \
+   $ALCHEMIST -v -f test_extract_basic.zip extract --output-dir test_extract_basic" \
+  "[ -f test_extract_basic/file1.txt ] && \
+   grep -q 'File 1 content' test_extract_basic/file1.txt && \
+   [ -f test_extract_basic/dir/file2.txt ] && \
+   grep -q 'File 2 content' test_extract_basic/dir/file2.txt"
+
+# Test selective extraction
+run_test "Extract - Selective extraction" \
+  "$ALCHEMIST -v -f test_extract_selective.zip add file1.txt --content 'File 1 content' && \
+   $ALCHEMIST -v -f test_extract_selective.zip add dir/file2.txt --content 'File 2 content' && \
+   mkdir -p test_extract_selective && \
+   $ALCHEMIST -v -f test_extract_selective.zip extract --path dir --output-dir test_extract_selective" \
+  "[ ! -f test_extract_selective/file1.txt ] && \
+   [ -f test_extract_selective/dir/file2.txt ] && \
+   grep -q 'File 2 content' test_extract_selective/dir/file2.txt"
+
+# Test safe mode (default) with path traversal
+run_test "Extract - Safe mode path handling" \
+  "$ALCHEMIST -v -f test_extract_safe.zip add ../outside.txt --content 'Outside content' && \
+   $ALCHEMIST -v -f test_extract_safe.zip add /absolute/path.txt --content 'Absolute content' && \
+   mkdir -p test_extract_safe && \
+   $ALCHEMIST -v -f test_extract_safe.zip extract --output-dir test_extract_safe" \
+  "[ ! -f test_extract_safe/../outside.txt ] && \
+   [ -f test_extract_safe/outside.txt ] && \
+   grep -q 'Outside content' test_extract_safe/outside.txt && \
+   [ -f test_extract_safe/path.txt ] && \
+   grep -q 'Absolute content' test_extract_safe/path.txt"
+
+# Test symlink handling in safe mode
+run_test "Extract - Safe mode symlink handling" \
+  "$ALCHEMIST -v -f test_extract_safe_symlink.tar -t tar add target.txt --content 'Target content' && \
+   $ALCHEMIST -v -f test_extract_safe_symlink.tar -t tar add link.txt --symlink target.txt && \
+   mkdir -p test_extract_safe_symlink && \
+   $ALCHEMIST -v -f test_extract_safe_symlink.tar -t tar extract --output-dir test_extract_safe_symlink" \
+  "[ -f test_extract_safe_symlink/target.txt ] && \
+   [ -f test_extract_safe_symlink/link.txt ] && \
+   [ ! -L test_extract_safe_symlink/link.txt ] && \
+   grep -q 'Target content' test_extract_safe_symlink/target.txt && \
+   grep -q 'symlink to' test_extract_safe_symlink/link.txt"
+
+# Test vulnerable mode with path traversal
+run_test "Extract - Vulnerable mode path handling" \
+  "mkdir -p test_extract_vuln && \
+   $ALCHEMIST -v -f test_extract_vuln.zip add ../outside.txt --content 'Outside content' && \
+   $ALCHEMIST -v -f test_extract_vuln.zip extract --vulnerable --output-dir test_extract_vuln" \
+  "[ -f test_extract_vuln/../outside.txt ] && \
+   grep -q 'Outside content' test_extract_vuln/../outside.txt" \
+  || echo "Note: This test may fail if the parent directory isn't writable"
+
+# Test symlink handling in vulnerable mode
+run_test "Extract - Vulnerable mode symlink handling" \
+  "$ALCHEMIST -v -f test_extract_vuln_symlink.tar -t tar add target.txt --content 'Target content' && \
+   $ALCHEMIST -v -f test_extract_vuln_symlink.tar -t tar add link.txt --symlink target.txt && \
+   mkdir -p test_extract_vuln_symlink && \
+   $ALCHEMIST -v -f test_extract_vuln_symlink.tar -t tar extract --vulnerable --output-dir test_extract_vuln_symlink" \
+  "[ -f test_extract_vuln_symlink/target.txt ] && \
+   [ -L test_extract_vuln_symlink/link.txt ] && \
+   LINK_TARGET=\$(readlink test_extract_vuln_symlink/link.txt) && \
+   [ \"\$LINK_TARGET\" = \"target.txt\" ] && \
+   grep -q 'Target content' test_extract_vuln_symlink/target.txt"
+
+# Test for preserving permissions by default
+run_test "Extract - Default preserve permissions" \
+  "$ALCHEMIST -v -f test_extract_perms.tar -t tar add exec.sh --content '#!/bin/sh\necho test' --mode 0755 && \
+   mkdir -p test_extract_perms && \
+   $ALCHEMIST -v -f test_extract_perms.tar -t tar extract --output-dir test_extract_perms" \
+  "[ -f test_extract_perms/exec.sh ] && \
+   PERMS=\$(stat -c '%a' test_extract_perms/exec.sh) && \
+   [ \"\$PERMS\" = \"755\" ]"
+
+# Test for normalizing permissions
+run_test "Extract - Normalize permissions" \
+  "$ALCHEMIST -v -f test_extract_norm_perms.tar -t tar add exec.sh --content '#!/bin/sh\necho test' --mode 0755 && \
+   mkdir -p test_extract_norm_perms && \
+   $ALCHEMIST -v -f test_extract_norm_perms.tar -t tar extract --normalize-permissions --output-dir test_extract_norm_perms" \
+  "[ -f test_extract_norm_perms/exec.sh ] && \
+   PERMS=\$(stat -c '%a' test_extract_norm_perms/exec.sh) && \
+   [ \"\$PERMS\" != \"755\" ]"
+
+# Test TAR hardlinks in safe mode
+run_test "Extract - Safe mode hardlinks" \
+  "$ALCHEMIST -v -f test_extract_safe_hardlink.tar -t tar add original.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_extract_safe_hardlink.tar -t tar add hardlink.txt --hardlink original.txt && \
+   mkdir -p test_extract_safe_hardlink && \
+   $ALCHEMIST -v -f test_extract_safe_hardlink.tar -t tar extract --output-dir test_extract_safe_hardlink" \
+  "[ -f test_extract_safe_hardlink/original.txt ] && \
+   [ -f test_extract_safe_hardlink/hardlink.txt ] && \
+   [ ! -L test_extract_safe_hardlink/hardlink.txt ] && \
+   ORIG_INODE=\$(ls -i test_extract_safe_hardlink/original.txt | awk '{print \$1}') && \
+   LINK_INODE=\$(ls -i test_extract_safe_hardlink/hardlink.txt | awk '{print \$1}') && \
+   [ \"\$ORIG_INODE\" != \"\$LINK_INODE\" ] && \
+   grep -q 'Original content' test_extract_safe_hardlink/original.txt"
+
+# Test TAR hardlinks in vulnerable mode
+run_test "Extract - Vulnerable mode hardlinks" \
+  "$ALCHEMIST -v -f test_extract_vuln_hardlink.tar -t tar add original.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_extract_vuln_hardlink.tar -t tar add hardlink.txt --hardlink original.txt && \
+   mkdir -p test_extract_vuln_hardlink && \
+   $ALCHEMIST -v -f test_extract_vuln_hardlink.tar -t tar extract --vulnerable --output-dir test_extract_vuln_hardlink" \
+  "[ -f test_extract_vuln_hardlink/original.txt ] && \
+   [ -f test_extract_vuln_hardlink/hardlink.txt ] && \
+   grep -q 'Original content' test_extract_vuln_hardlink/original.txt && \
+   grep -q 'Original content' test_extract_vuln_hardlink/hardlink.txt"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"

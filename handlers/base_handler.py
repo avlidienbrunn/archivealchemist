@@ -41,6 +41,69 @@ class BaseArchiveHandler(ABC):
         """List the contents of the archive."""
         pass
 
+    @abstractmethod
+    def extract(self, args):
+        """Extract files from the archive."""
+        pass
+
+    def _sanitize_path(self, path, output_dir):
+        """Sanitize a path to prevent path traversal attacks.
+        
+        Args:
+            path: The path to sanitize.
+            output_dir: The base output directory.
+            
+        Returns:
+            A safe path within the output directory.
+        """
+        # Remove any leading slashes and drive letters (Windows)
+        path = os.path.normpath(path)
+        if os.path.isabs(path):
+            # For absolute paths, just use the filename/last component
+            path = os.path.basename(path)
+        
+        # Remove any parent directory references to prevent traversal
+        parts = []
+        for part in path.split(os.sep):
+            if part == '.' or part == '':
+                continue
+            if part == '..':
+                continue  # Skip parent directory references
+            parts.append(part)
+        
+        # Join the safe parts
+        safe_path = os.path.join(*parts) if parts else ''
+        
+        # Join with the output directory
+        return os.path.join(output_dir, safe_path)
+
+    def _is_safe_path(self, path, output_dir):
+        """Check if a path is safe to extract to.
+        
+        Args:
+            path: The path to check.
+            output_dir: The base output directory.
+            
+        Returns:
+            True if the path is safe, False otherwise.
+        """
+        # Normalize both paths for comparison
+        path = os.path.normpath(os.path.join(output_dir, path))
+        output_dir = os.path.normpath(output_dir)
+        
+        # The normalized path should start with the output directory
+        return os.path.commonprefix([path, output_dir]) == output_dir and '..' not in path
+
+    def _create_parent_dirs(self, path):
+        """Create parent directories for a path if they don't exist.
+        
+        Args:
+            path: The path to create parent directories for.
+        """
+        parent_dir = os.path.dirname(path)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
+
     def format_mode(self, mode):
         """Format a file mode as a permission string (like ls -l).
         

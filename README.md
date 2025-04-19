@@ -102,6 +102,34 @@ You can always override automatic detection by explicitly specifying the `-t` fl
 ./archive-alchemist.py -v -f archive.tar -t tar remove directory/
 ```
 
+#### Extract Archive Contents
+
+```bash
+# Extract all files from an archive
+./archive-alchemist.py -f archive.zip extract
+
+# Extract to a specific directory
+./archive-alchemist.py -f archive.tar -t tar extract --output-dir /path/to/extract
+
+# Extract a specific file or directory from the archive
+./archive-alchemist.py -f archive.zip extract --path some/dir
+
+# Extract in vulnerable mode (allows path traversal, symlinks, etc.)
+./archive-alchemist.py -f archive.tar -t tar extract --vulnerable
+
+# Normalize file permissions instead of preserving them
+./archive-alchemist.py -f archive.zip extract --normalize-permissions
+```
+
+The extraction feature prioritizes safety by default:
+
+- **Safe by default**: Path traversal is prevented, absolute paths are sanitized, and symlinks are converted to regular files with information about their targets
+- **Permission preservation**: By default, file permissions from the archive are preserved
+- **Controlled vulnerability testing**: Use `--vulnerable` to allow potentially unsafe extractions for testing purposes
+- **Selective extraction**: Extract only specific paths from the archive
+
+This implementation helps security researchers test how different archive formats and extraction methods can be exploited, while maintaining safety by default.
+
 #### List Archive Contents
 
 ```bash

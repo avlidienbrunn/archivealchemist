@@ -170,6 +170,13 @@ class ArchiveAlchemist:
         # List command
         list_parser = subparsers.add_parser("list", help="List contents of the archive")
         list_parser.add_argument("--long", "-l", type=int, default=1, help="Show detailed listing with file attributes")
+
+        # Extract command
+        extract_parser = subparsers.add_parser("extract", help="Extract files from the archive")
+        extract_parser.add_argument("--path", help="Path within the archive to extract (default: extract all)")
+        extract_parser.add_argument("--output-dir", "-o", default=".", help="Directory to extract files to (default: current directory)")
+        extract_parser.add_argument("--vulnerable", action="store_true", help="Allow potentially unsafe extractions (absolute paths, path traversal, etc.)")
+        extract_parser.add_argument("--normalize-permissions", action="store_true", help="Normalize file permissions during extraction (don't preserve original permissions)")
         
         return parser
     
@@ -211,6 +218,8 @@ class ArchiveAlchemist:
             handler.remove(args)
         elif args.command == "list":
             handler.list(args)
+        elif args.command == "extract":
+            handler.extract(args)
         else:
             print(f"Error: Unknown command {args.command}")
 

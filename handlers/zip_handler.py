@@ -379,3 +379,116 @@ class ZipHandler(BaseArchiveHandler):
         
         except zipfile.BadZipFile:
             print(f"Error: {args.file} is not a valid ZIP file")
+
+    def extract(self, args):
+        """Extract files from the ZIP archive."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # Create output directory if it doesn't exist
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir, exist_ok=True)
+        
+        try:
+            with zipfile.ZipFile(args.file, "r") as zip_file:
+                # Get list of entries to extract
+                entries = zip_file.infolist()
+                
+                # Filter entries if a specific path is specified
+                if args.path:
+                    # Keep entries that match the path or are under the path directory
+                    entries = [entry for entry in entries if
+                            entry.filename == args.path or
+                            entry.filename.startswith(args.path + "/")]
+                    
+                    if not entries:
+                        print(f"Error: Path '{args.path}' not found in the archive")
+                        return
+                
+                # Sort entries to ensure directories are created before files
+                entries.sort(key=lambda entry: entry.filename)
+                
+                # Process each entry
+                for entry in entries:
+                    # Check if the entry is a directory
+                    is_dir = entry.filename.endswith('/')
+                    
+                    # Determine output path - apply safety checks unless --vulnerable is specified
+                    if not args.vulnerable:
+                        output_path = self._sanitize_path(entry.filename, args.output_dir)
+                    else:
+                        output_path = os.path.join(args.output_dir, entry.filename)
+                    
+                    # Check if this is a symlink
+                    is_symlink = False
+                    symlink_target = None
+                    mode = (entry.external_attr >> 16) & 0o170000
+                    
+                    if mode == 0o120000:  # Symlink
+                        is_symlink = True
+                        # Read the symlink target
+                        symlink_target = zip_file.read(entry.filename).decode('utf-8')
+                        
+                        # If not in vulnerable mode, create a regular file with the target as content
+                        if not args.vulnerable:
+                            self._create_parent_dirs(output_path)
+                            with open(output_path, 'w') as f:
+                                f.write(f"Symlink to: {symlink_target}")
+                            if args.verbose:
+                                print(f"Created file for symlink: {output_path} (points to {symlink_target})")
+                            
+                            # Skip to the next entry
+                            continue
+                    
+                    # Create directory if needed
+                    if is_dir:
+                        if not os.path.exists(output_path):
+                            os.makedirs(output_path, exist_ok=True)
+                        if args.verbose:
+                            print(f"Created directory: {output_path}")
+                        continue
+                    
+                    # Create parent directories
+                    self._create_parent_dirs(output_path)
+                    
+                    # Handle symlink in vulnerable mode
+                    if is_symlink and args.vulnerable:
+                        # Create a symlink
+                        if os.path.exists(output_path):
+                            os.remove(output_path)
+                        try:
+                            os.symlink(symlink_target, output_path)
+                            if args.verbose:
+                                print(f"Created symlink: {output_path} -> {symlink_target}")
+                        except:
+                            print(f"Error creating symlink: {entry.filename}")
+                            # Fall back to creating a regular file with the target as content
+                            with open(output_path, 'w') as f:
+                                f.write(f"Failed to create symlink to: {symlink_target}")
+                    
+                    # Regular file
+                    elif not is_symlink:
+                        # Extract the file
+                        with open(output_path, 'wb') as f:
+                            f.write(zip_file.read(entry.filename))
+                        if args.verbose:
+                            print(f"Extracted: {output_path}")
+                    
+                    # Set permissions - preserve by default, normalize if requested
+                    if not args.normalize_permissions and not is_symlink:
+                        mode = (entry.external_attr >> 16) & 0o777
+                        if mode:
+                            try:
+                                os.chmod(output_path, mode)
+                            except:
+                                print(f"Warning: Could not set permissions for {output_path}")
+                
+                # Print summary
+                if args.verbose:
+                    print(f"Extraction complete: {len(entries)} entries extracted to {args.output_dir}")
+        
+        except zipfile.BadZipFile:
+            print(f"Error: {args.file} is not a valid ZIP file")
+        except Exception as e:
+            print(f"Error extracting {args.file}: {e}")

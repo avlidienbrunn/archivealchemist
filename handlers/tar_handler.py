@@ -509,3 +509,186 @@ class TarHandler(BaseArchiveHandler):
         
         except tarfile.ReadError:
             print(f"Error: {args.file} is not a valid TAR file")
+
+    def extract(self, args):
+        """Extract files from the TAR archive."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # Create output directory if it doesn't exist
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir, exist_ok=True)
+        
+        try:
+            read_mode = self._get_mode("r")
+            with tarfile.open(args.file, read_mode) as tar_file:
+                # Get list of members to extract
+                members = tar_file.getmembers()
+                
+                # Filter members if a specific path is specified
+                if args.path:
+                    # Keep members that match the path or are under the path directory
+                    members = [member for member in members if
+                            member.name == args.path or
+                            member.name.startswith(args.path + "/")]
+                    
+                    if not members:
+                        print(f"Error: Path '{args.path}' not found in the archive")
+                        return
+                
+                # Sort members to ensure directories are created before files
+                members.sort(key=lambda member: member.name)
+                
+                # Split members by type
+                directories = []
+                regular_files = []
+                symlinks = []
+                hardlinks = []
+                other_types = []
+                
+                for member in members:
+                    if member.isdir():
+                        directories.append(member)
+                    elif member.isreg():
+                        regular_files.append(member)
+                    elif member.issym():
+                        symlinks.append(member)
+                    elif member.islnk():
+                        hardlinks.append(member)
+                    else:
+                        other_types.append(member)
+                
+                # Extract in the correct order: directories, regular files, symlinks, hardlinks, others
+                # This ensures targets exist before creating links to them
+                
+                # 1. First create all directories
+                for member in directories:
+                    # Determine output path
+                    if not args.vulnerable:
+                        output_path = self._sanitize_path(member.name, args.output_dir)
+                    else:
+                        output_path = os.path.join(args.output_dir, member.name)
+                    
+                    # Create directory
+                    if not os.path.exists(output_path):
+                        os.makedirs(output_path, exist_ok=True)
+                    if args.verbose:
+                        print(f"Created directory: {output_path}")
+                    
+                    # Set permissions if requested
+                    if not args.normalize_permissions:
+                        try:
+                            os.chmod(output_path, member.mode & 0o777)
+                        except:
+                            print(f"Warning: Could not set permissions for {output_path}")
+                
+                # 2. Extract regular files
+                for member in regular_files:
+                    # Determine output path
+                    if not args.vulnerable:
+                        output_path = self._sanitize_path(member.name, args.output_dir)
+                    else:
+                        output_path = os.path.join(args.output_dir, member.name)
+                    
+                    # Create parent directories
+                    self._create_parent_dirs(output_path)
+                    
+                    # Extract the file
+                    with open(output_path, 'wb') as f:
+                        f.write(tar_file.extractfile(member).read())
+                    if args.verbose:
+                        print(f"Extracted: {output_path}")
+                    
+                    # Set permissions if requested
+                    if not args.normalize_permissions:
+                        try:
+                            os.chmod(output_path, member.mode & 0o777)
+                        except:
+                            print(f"Warning: Could not set permissions for {output_path}")
+                
+                # 3. Process symlinks
+                for member in symlinks:
+                    # Determine output path
+                    if not args.vulnerable:
+                        output_path = self._sanitize_path(member.name, args.output_dir)
+                    else:
+                        output_path = os.path.join(args.output_dir, member.name)
+                    
+                    # Create parent directories
+                    self._create_parent_dirs(output_path)
+                    
+                    # Handle symlinks based on mode
+                    if not args.vulnerable:
+                        # In safe mode, create a regular file with info about the link
+                        with open(output_path, 'w') as f:
+                            f.write(f"symlink to: {member.linkname}")
+                        if args.verbose:
+                            print(f"Created file for symlink: {output_path} (points to {member.linkname})")
+                    else:
+                        # In vulnerable mode, create the actual symlink
+                        if os.path.exists(output_path):
+                            os.remove(output_path)
+                        try:
+                            os.symlink(member.linkname, output_path)
+                            if args.verbose:
+                                print(f"Created symlink: {output_path} -> {member.linkname}")
+                        except:
+                            print(f"Error creating symlink: {member.name}")
+                            # Fall back to file with info
+                            with open(output_path, 'w') as f:
+                                f.write(f"Failed to create symlink to: {member.linkname}")
+                
+                # 4. Process hardlinks (after regular files exist)
+                for member in hardlinks:
+                    # Determine output path
+                    if not args.vulnerable:
+                        output_path = self._sanitize_path(member.name, args.output_dir)
+                    else:
+                        output_path = os.path.join(args.output_dir, member.name)
+                    
+                    # Create parent directories
+                    self._create_parent_dirs(output_path)
+                    
+                    # Handle hardlinks based on mode
+                    if not args.vulnerable:
+                        # In safe mode, create a regular file with info about the link
+                        with open(output_path, 'w') as f:
+                            f.write(f"hardlink to: {member.linkname}")
+                        if args.verbose:
+                            print(f"Created file for hardlink: {output_path} (points to {member.linkname})")
+                    else:
+                        # In vulnerable mode, create the actual hardlink if possible
+                        # First, find the target
+                        target_path = os.path.join(args.output_dir, member.linkname)
+                        if os.path.exists(target_path):
+                            if os.path.exists(output_path):
+                                os.remove(output_path)
+                            try:
+                                os.link(target_path, output_path)
+                                if args.verbose:
+                                    print(f"Created hardlink: {output_path} -> {target_path}")
+                            except:
+                                # Fall back to copying
+                                shutil.copy2(target_path, output_path)
+                                if args.verbose:
+                                    print(f"Copied file (hardlink not supported): {output_path}")
+                        else:
+                            print(f"Warning: Hardlink target not found: {target_path}")
+                            # Create a placeholder file
+                            with open(output_path, 'w') as f:
+                                f.write(f"Hardlink to: {member.linkname} (target not found)")
+                
+                # 5. Process other types
+                for member in other_types:
+                    if args.verbose:
+                        print(f"Skipping unsupported file type: {member.name}")
+                
+                # Print summary
+                if args.verbose:
+                    print(f"Extraction complete: {len(members)} entries extracted to {args.output_dir}")
+        
+        except tarfile.ReadError:
+            print(f"Error: {args.file} is not a valid TAR file")
+        except Exception as e:
+            print(f"Error extracting {args.file}: {e}")
