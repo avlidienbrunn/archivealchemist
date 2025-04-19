@@ -94,20 +94,39 @@ class ZipHandler(BaseArchiveHandler):
                     mode = self.apply_special_bits(mode, args)
                     info.external_attr = mode << 16
                 
-                # Add the file to the archive
-                content = args.content if args.content else ""
-                archive.writestr(info, content)
-                
-                if args.verbose:
-                    print(f"Added {args.path} to {args.file}")
+                # Get content from either --content or --content-file
+                try:
+                    content = self.get_content(args)
+                    archive.writestr(info, content)
+                    
+                    if args.verbose:
+                        if args.content_file:
+                            print(f"Added {args.path} with content from {args.content_file} to {args.file}")
+                        else:
+                            print(f"Added {args.path} to {args.file}")
+                except (ValueError, FileNotFoundError) as e:
+                    print(f"Error: {e}")
+                    return
                 
         finally:
             archive.close()
-    
+
     def replace(self, args):
         """Replace a file in the ZIP archive."""
         if not os.path.exists(args.file):
             print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # Get content from either --content or --content-file
+        try:
+            content = self.get_content(args)
+        except (ValueError, FileNotFoundError) as e:
+            print(f"Error: {e}")
+            return
+        
+        # If neither content nor content-file is specified, show an error
+        if not args.content and not args.content_file and args.require_content:
+            print("Error: Either --content or --content-file must be specified")
             return
         
         # For ZIP, we need to extract, modify, and rewrite the archive
@@ -128,19 +147,34 @@ class ZipHandler(BaseArchiveHandler):
                     zip_out.writestr(entry, zip_in.read(entry.filename))
                 
                 # Add the replaced entry
-                zip_out.writestr(args.path, args.content)
+                zip_out.writestr(args.path, content)
         
         # Replace the original file
         os.remove(args.file)
         os.rename(args.file + ".tmp", args.file)
         
         if args.verbose:
-            print(f"Replaced {args.path} in {args.file}")
-    
+            if args.content_file:
+                print(f"Replaced {args.path} with content from {args.content_file} in {args.file}")
+            else:
+                print(f"Replaced {args.path} in {args.file}")
+
     def append(self, args):
         """Append content to a file in the ZIP archive."""
         if not os.path.exists(args.file):
             print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # Get content to append from either --content or --content-file
+        try:
+            append_content = self.get_content(args)
+        except (ValueError, FileNotFoundError) as e:
+            print(f"Error: {e}")
+            return
+        
+        # If neither content nor content-file is specified, show an error
+        if not args.content and not args.content_file and args.require_content:
+            print("Error: Either --content or --content-file must be specified")
             return
         
         # Extract the file, append content, and replace it
@@ -150,21 +184,29 @@ class ZipHandler(BaseArchiveHandler):
                 return
             
             # Extract the file content
-            content = zip_ref.read(args.path).decode("utf-8")
+            existing_content = zip_ref.read(args.path).decode("utf-8")
             
             # Append content
-            new_content = content + args.content
+            new_content = existing_content + append_content
             
             # Create temporary args for replace
             replace_args = type('Args', (), {
                 'file': args.file,
                 'path': args.path,
                 'content': new_content,
-                'verbose': args.verbose
+                'content_file': None,
+                'verbose': args.verbose,
+                'require_content': False
             })
             
             # Call replace with the new content
             self.replace(replace_args)
+        
+        if args.verbose:
+            if args.content_file:
+                print(f"Appended content from {args.content_file} to {args.path} in {args.file}")
+            else:
+                print(f"Appended to {args.path} in {args.file}")
     
     def modify(self, args):
         """Modify file attributes in the ZIP archive."""

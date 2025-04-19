@@ -48,6 +48,7 @@ class ArchiveAlchemist:
         add_parser = subparsers.add_parser("add", help="Add files to the archive")
         add_parser.add_argument("path", help="Path within the archive")
         add_parser.add_argument("--content", help="Content to add to the file")
+        add_parser.add_argument("--content-file", help="Path to a local file whose content should be added")
         add_parser.add_argument("--symlink", help="Create a symlink to this target")
         add_parser.add_argument("--hardlink", help="Create a hardlink to this target")
         add_parser.add_argument("--mode", type=lambda x: int(x, 8), help="File mode (octal)")
@@ -61,12 +62,18 @@ class ArchiveAlchemist:
         # Replace command
         replace_parser = subparsers.add_parser("replace", help="Replace files in the archive")
         replace_parser.add_argument("path", help="Path within the archive")
-        replace_parser.add_argument("--content", required=True, help="New content for the file")
+        replace_parser.add_argument("--content", help="New content for the file")
+        replace_parser.add_argument("--content-file", help="Path to a local file whose content should be used")
+        replace_parser.add_argument("--require-content", action="store_true", default=True, 
+                                help=argparse.SUPPRESS)  # Hidden option to maintain backward compatibility
         
         # Append command
         append_parser = subparsers.add_parser("append", help="Append to files in the archive")
         append_parser.add_argument("path", help="Path within the archive")
-        append_parser.add_argument("--content", required=True, help="Content to append to the file")
+        append_parser.add_argument("--content", help="Content to append to the file")
+        append_parser.add_argument("--content-file", help="Path to a local file whose content should be appended")
+        append_parser.add_argument("--require-content", action="store_true", default=True,
+                                help=argparse.SUPPRESS)  # Hidden option to maintain backward compatibility
         
         # Modify command
         modify_parser = subparsers.add_parser("modify", help="Modify file attributes")

@@ -30,6 +30,34 @@ class BaseArchiveHandler(ABC):
     def modify(self, args):
         """Modify file attributes in the archive."""
         pass
+
+    def get_content(self, args):
+        """Get content from either --content or --content-file options.
+        
+        Args:
+            args: The command-line arguments.
+            
+        Returns:
+            The content as a string.
+            
+        Raises:
+            ValueError: If both --content and --content-file are specified.
+            FileNotFoundError: If the content file doesn't exist.
+        """
+        if args.content and args.content_file:
+            raise ValueError("Cannot specify both --content and --content-file")
+            
+        if args.content_file:
+            # Check if the file exists
+            if not os.path.exists(args.content_file):
+                raise FileNotFoundError(f"Content file not found: {args.content_file}")
+                
+            # Read the file content
+            with open(args.content_file, 'r', encoding='utf-8') as f:
+                return f.read()
+        
+        # Return the content argument or an empty string if neither is specified
+        return args.content if args.content else ""
     
     def create_temp_file(self, content=None):
         """Create a temporary file with optional content."""

@@ -113,6 +113,9 @@ class TarHandler(BaseArchiveHandler):
                 
                 # Add the symlink to the archive
                 archive.addfile(tarinfo)
+                
+                if args.verbose:
+                    print(f"Added symlink {args.path} -> {args.symlink} to {args.file}")
             
             # Process hardlink
             elif args.hardlink:
@@ -140,13 +143,22 @@ class TarHandler(BaseArchiveHandler):
                 
                 # Add the hardlink to the archive
                 archive.addfile(tarinfo)
+                
+                if args.verbose:
+                    print(f"Added hardlink {args.path} -> {args.hardlink} to {args.file}")
             
             # Process regular file
             else:
+                # Get content from either --content or --content-file
+                try:
+                    content = self.get_content(args)
+                    content_bytes = content.encode('utf-8')
+                except (ValueError, FileNotFoundError) as e:
+                    print(f"Error: {e}")
+                    return
+                
                 # Create a tarinfo for the file
                 tarinfo = tarfile.TarInfo(args.path)
-                content = args.content if args.content else ""
-                content_bytes = content.encode('utf-8')
                 tarinfo.size = len(content_bytes)
                 
                 # Apply attributes if specified
@@ -167,9 +179,12 @@ class TarHandler(BaseArchiveHandler):
                 
                 # Add the file to the archive with content
                 archive.addfile(tarinfo, io.BytesIO(content_bytes))
-            
-            if args.verbose:
-                print(f"Added {args.path} to {args.file}")
+                
+                if args.verbose:
+                    if args.content_file:
+                        print(f"Added {args.path} with content from {args.content_file} to {args.file}")
+                    else:
+                        print(f"Added {args.path} to {args.file}")
         
         finally:
             archive.close()
@@ -178,11 +193,24 @@ class TarHandler(BaseArchiveHandler):
                 # Replace the original file
                 os.remove(args.file)
                 os.rename(temp_file, args.file)
-    
+
+    # Update the replace method in TarHandler
     def replace(self, args):
         """Replace a file in the TAR archive."""
         if not os.path.exists(args.file):
             print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # Get content from either --content or --content-file
+        try:
+            content = self.get_content(args)
+        except (ValueError, FileNotFoundError) as e:
+            print(f"Error: {e}")
+            return
+        
+        # If neither content nor content-file is specified, show an error
+        if not args.content and not args.content_file and getattr(args, 'require_content', True):
+            print("Error: Either --content or --content-file must be specified")
             return
         
         # For TAR, we need to extract, modify, and rewrite the archive
@@ -215,7 +243,7 @@ class TarHandler(BaseArchiveHandler):
                 
                 # Create a new tarinfo with the same attributes
                 tarinfo = tarfile.TarInfo(args.path)
-                content_bytes = args.content.encode('utf-8')
+                content_bytes = content.encode('utf-8')
                 tarinfo.size = len(content_bytes)
                 tarinfo.mode = orig_member.mode
                 tarinfo.type = orig_member.type
@@ -234,12 +262,28 @@ class TarHandler(BaseArchiveHandler):
         os.rename(args.file + ".tmp", args.file)
         
         if args.verbose:
-            print(f"Replaced {args.path} in {args.file}")
-    
+            if args.content_file:
+                print(f"Replaced {args.path} with content from {args.content_file} in {args.file}")
+            else:
+                print(f"Replaced {args.path} in {args.file}")
+
+    # Update the append method in TarHandler
     def append(self, args):
         """Append content to a file in the TAR archive."""
         if not os.path.exists(args.file):
             print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # Get content to append from either --content or --content-file
+        try:
+            append_content = self.get_content(args)
+        except (ValueError, FileNotFoundError) as e:
+            print(f"Error: {e}")
+            return
+        
+        # If neither content nor content-file is specified, show an error
+        if not args.content and not args.content_file and getattr(args, 'require_content', True):
+            print("Error: Either --content or --content-file must be specified")
             return
         
         # Extract the file, append content, and replace it
@@ -259,21 +303,29 @@ class TarHandler(BaseArchiveHandler):
                 return
             
             # Extract the file content
-            content = tar_ref.extractfile(args.path).read().decode("utf-8")
+            existing_content = tar_ref.extractfile(args.path).read().decode("utf-8")
             
             # Append content
-            new_content = content + args.content
+            new_content = existing_content + append_content
             
             # Create temporary args for replace
             replace_args = type('Args', (), {
                 'file': args.file,
                 'path': args.path,
                 'content': new_content,
-                'verbose': args.verbose
+                'content_file': None,
+                'verbose': args.verbose,
+                'require_content': False
             })
             
             # Call replace with the new content
             self.replace(replace_args)
+        
+        if args.verbose:
+            if args.content_file:
+                print(f"Appended content from {args.content_file} to {args.path} in {args.file}")
+            else:
+                print(f"Appended to {args.path} in {args.file}")
     
     def modify(self, args):
         """Modify file attributes in the TAR archive."""
