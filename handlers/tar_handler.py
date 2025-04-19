@@ -1,0 +1,345 @@
+"""
+Handler for TAR archive operations.
+Implements the BaseArchiveHandler interface for TAR archives.
+"""
+
+import io
+import os
+import tarfile
+import tempfile
+from handlers.base_handler import BaseArchiveHandler
+
+
+class TarHandler(BaseArchiveHandler):
+    """Handler for TAR archives."""
+    
+    def __init__(self, compressed=False):
+        """Initialize the TAR handler.
+        
+        Args:
+            compressed: Whether to use gzip compression.
+        """
+        self.compressed = compressed
+    
+    def _get_mode(self, operation, binary=False):
+        """Get the mode string for tarfile operations.
+        
+        Args:
+            operation: The operation to perform (r, w, a).
+            binary: Whether to open in binary mode.
+        
+        Returns:
+            The mode string for tarfile.open().
+        """
+        if self.compressed:
+            if operation == "r":
+                return "r:gz"
+            elif operation == "w":
+                return "w:gz"
+            elif operation == "a":
+                # Note: appending to compressed archives is problematic
+                # We'll need to rewrite the entire archive
+                return "w:gz"
+        else:
+            if binary and operation != "r":
+                return f"{operation}b"
+            return operation
+    
+    def _create_new_archive(self, file_path):
+        """Create a new TAR archive."""
+        mode = self._get_mode("w")
+        return tarfile.open(file_path, mode)
+    
+    def _open_existing_archive(self, file_path, mode="a"):
+        """Open an existing TAR archive."""
+        tar_mode = self._get_mode(mode)
+        return tarfile.open(file_path, tar_mode)
+    
+    def add(self, args):
+        """Add a file or symlink to the TAR archive."""
+        # Create archive or open existing
+        if os.path.exists(args.file) and not self.compressed:
+            # We can append to uncompressed tar files
+            archive = self._open_existing_archive(args.file, "a")
+            needs_rewrite = False
+        else:
+            if os.path.exists(args.file):
+                # For compressed archives, we need to rewrite the entire archive
+                needs_rewrite = True
+                read_archive = self._open_existing_archive(args.file, "r")
+                temp_file = args.file + ".tmp"
+                write_archive = self._create_new_archive(temp_file)
+            else:
+                # New archive
+                archive = self._create_new_archive(args.file)
+                needs_rewrite = False
+        
+        try:
+            if needs_rewrite:
+                # Copy all existing entries
+                for entry in read_archive.getmembers():
+                    if entry.isfile():
+                        file_data = read_archive.extractfile(entry)
+                        write_archive.addfile(entry, file_data)
+                    else:
+                        write_archive.addfile(entry)
+                
+                # Use the write archive as our working archive
+                archive = write_archive
+            
+            # Process symlink
+            if args.symlink:
+                # Create a tarinfo for the symlink
+                tarinfo = tarfile.TarInfo(args.path)
+                tarinfo.type = tarfile.SYMTYPE
+                tarinfo.linkname = args.symlink
+                tarinfo.size = 0  # Symlinks don't have content
+                
+                # Apply attributes if specified
+                if args.mode:
+                    tarinfo.mode = args.mode
+                if args.uid is not None:
+                    tarinfo.uid = args.uid
+                if args.gid is not None:
+                    tarinfo.gid = args.gid
+                if args.mtime is not None:
+                    tarinfo.mtime = args.mtime
+                
+                # Apply special bits
+                if args.setuid or args.setgid or args.sticky:
+                    mode = tarinfo.mode
+                    mode = self.apply_special_bits(mode, args)
+                    tarinfo.mode = mode
+                
+                # Add the symlink to the archive
+                archive.addfile(tarinfo)
+            
+            # Process hardlink
+            elif args.hardlink:
+                # Create a tarinfo for the hardlink
+                tarinfo = tarfile.TarInfo(args.path)
+                tarinfo.type = tarfile.LNKTYPE
+                tarinfo.linkname = args.hardlink
+                tarinfo.size = 0  # Hardlinks don't have content
+                
+                # Apply attributes if specified
+                if args.mode:
+                    tarinfo.mode = args.mode
+                if args.uid is not None:
+                    tarinfo.uid = args.uid
+                if args.gid is not None:
+                    tarinfo.gid = args.gid
+                if args.mtime is not None:
+                    tarinfo.mtime = args.mtime
+                
+                # Apply special bits
+                if args.setuid or args.setgid or args.sticky:
+                    mode = tarinfo.mode
+                    mode = self.apply_special_bits(mode, args)
+                    tarinfo.mode = mode
+                
+                # Add the hardlink to the archive
+                archive.addfile(tarinfo)
+            
+            # Process regular file
+            else:
+                # Create a tarinfo for the file
+                tarinfo = tarfile.TarInfo(args.path)
+                content = args.content if args.content else ""
+                content_bytes = content.encode('utf-8')
+                tarinfo.size = len(content_bytes)
+                
+                # Apply attributes if specified
+                if args.mode:
+                    tarinfo.mode = args.mode
+                if args.uid is not None:
+                    tarinfo.uid = args.uid
+                if args.gid is not None:
+                    tarinfo.gid = args.gid
+                if args.mtime is not None:
+                    tarinfo.mtime = args.mtime
+                
+                # Apply special bits
+                if args.setuid or args.setgid or args.sticky:
+                    mode = tarinfo.mode
+                    mode = self.apply_special_bits(mode, args)
+                    tarinfo.mode = mode
+                
+                # Add the file to the archive with content
+                archive.addfile(tarinfo, io.BytesIO(content_bytes))
+            
+            if args.verbose:
+                print(f"Added {args.path} to {args.file}")
+        
+        finally:
+            archive.close()
+            if needs_rewrite:
+                read_archive.close()
+                # Replace the original file
+                os.remove(args.file)
+                os.rename(temp_file, args.file)
+    
+    def replace(self, args):
+        """Replace a file in the TAR archive."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # For TAR, we need to extract, modify, and rewrite the archive
+        # Open the existing archive
+        read_mode = self._get_mode("r")
+        with tarfile.open(args.file, read_mode) as tar_in:
+            # Check if the file exists
+            member_names = [m.name for m in tar_in.getmembers()]
+            if args.path not in member_names:
+                print(f"Error: {args.path} not found in the archive")
+                return
+            
+            # Get the original member
+            orig_member = next(m for m in tar_in.getmembers() if m.name == args.path)
+            
+            # Get all other entries
+            entries = [entry for entry in tar_in.getmembers()
+                    if entry.name != args.path]
+            
+            # Create a new TAR file
+            write_mode = self._get_mode("w")
+            with tarfile.open(args.file + ".tmp", write_mode) as tar_out:
+                # Copy all the other entries
+                for entry in entries:
+                    if entry.isfile():
+                        file_data = tar_in.extractfile(entry)
+                        tar_out.addfile(entry, file_data)
+                    else:
+                        tar_out.addfile(entry)
+                
+                # Create a new tarinfo with the same attributes
+                tarinfo = tarfile.TarInfo(args.path)
+                content_bytes = args.content.encode('utf-8')
+                tarinfo.size = len(content_bytes)
+                tarinfo.mode = orig_member.mode
+                tarinfo.type = orig_member.type
+                tarinfo.linkname = orig_member.linkname
+                tarinfo.uid = orig_member.uid
+                tarinfo.gid = orig_member.gid
+                tarinfo.uname = orig_member.uname
+                tarinfo.gname = orig_member.gname
+                tarinfo.mtime = orig_member.mtime
+                
+                # Add the replaced file with new content
+                tar_out.addfile(tarinfo, io.BytesIO(content_bytes))
+        
+        # Replace the original file
+        os.remove(args.file)
+        os.rename(args.file + ".tmp", args.file)
+        
+        if args.verbose:
+            print(f"Replaced {args.path} in {args.file}")
+    
+    def append(self, args):
+        """Append content to a file in the TAR archive."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # Extract the file, append content, and replace it
+        read_mode = self._get_mode("r")
+        with tarfile.open(args.file, read_mode) as tar_ref:
+            member_names = [m.name for m in tar_ref.getmembers()]
+            if args.path not in member_names:
+                print(f"Error: {args.path} not found in the archive")
+                return
+            
+            # Get the file member
+            member = next(m for m in tar_ref.getmembers() if m.name == args.path)
+            
+            # Check if it's a regular file
+            if not member.isfile():
+                print(f"Error: {args.path} is not a regular file")
+                return
+            
+            # Extract the file content
+            content = tar_ref.extractfile(args.path).read().decode("utf-8")
+            
+            # Append content
+            new_content = content + args.content
+            
+            # Create temporary args for replace
+            replace_args = type('Args', (), {
+                'file': args.file,
+                'path': args.path,
+                'content': new_content,
+                'verbose': args.verbose
+            })
+            
+            # Call replace with the new content
+            self.replace(replace_args)
+    
+    def modify(self, args):
+        """Modify file attributes in the TAR archive."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # For TAR, we need to extract, modify, and rewrite the archive
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Open the existing archive
+            read_mode = self._get_mode("r")
+            with tarfile.open(args.file, read_mode) as tar_in:
+                # Check if the file exists
+                member_names = [m.name for m in tar_in.getmembers()]
+                if args.path not in member_names:
+                    print(f"Error: {args.path} not found in the archive")
+                    return
+                
+                # Get the original member
+                orig_member = next(m for m in tar_in.getmembers() if m.name == args.path)
+                
+                # Get all other entries
+                entries = [entry for entry in tar_in.getmembers()
+                         if entry.name != args.path]
+                
+                # Create a new TAR file
+                write_mode = self._get_mode("w")
+                with tarfile.open(args.file + ".tmp", write_mode) as tar_out:
+                    # Copy all the other entries
+                    for entry in entries:
+                        if entry.isfile():
+                            file_data = tar_in.extractfile(entry)
+                            tar_out.addfile(entry, file_data)
+                        else:
+                            tar_out.addfile(entry)
+                    
+                    # Create a new tarinfo with modified attributes
+                    tarinfo = tarfile.TarInfo(args.path)
+                    tarinfo.size = orig_member.size
+                    tarinfo.type = orig_member.type
+                    tarinfo.linkname = orig_member.linkname
+                    tarinfo.uid = orig_member.uid if args.uid is None else args.uid
+                    tarinfo.gid = orig_member.gid if args.gid is None else args.gid
+                    tarinfo.uname = orig_member.uname
+                    tarinfo.gname = orig_member.gname
+                    tarinfo.mtime = orig_member.mtime if args.mtime is None else args.mtime
+                    
+                    # Set mode and special bits
+                    mode = orig_member.mode
+                    if args.mode is not None:
+                        mode = args.mode
+                    
+                    # Apply special bits if requested
+                    mode = self.apply_special_bits(mode, args)
+                    tarinfo.mode = mode
+                    
+                    # Add the modified file to the archive
+                    if orig_member.isfile():
+                        file_data = tar_in.extractfile(orig_member)
+                        tar_out.addfile(tarinfo, file_data)
+                    else:
+                        tar_out.addfile(tarinfo)
+            
+            # Replace the original file
+            os.remove(args.file)
+            os.rename(args.file + ".tmp", args.file)
+        
+        if args.verbose:
+            print(f"Modified attributes of {args.path} in {args.file}")
