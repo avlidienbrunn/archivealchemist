@@ -7,11 +7,9 @@ like path traversal, symlinks, hardlinks, etc. to test extraction vulnerabilitie
 """
 
 import sys
-sys.dont_write_bytecode = True
+sys.dont_write_bytecode = True # no __pycache__ bs
 
-import argparse
-
-# Import handlers for different archive types
+import argparse, os, tarfile
 from handlers.zip_handler import ZipHandler
 from handlers.tar_handler import TarHandler
 
@@ -25,6 +23,81 @@ class ArchiveAlchemist:
             "tar.gz": TarHandler(compressed=True)
         }
         
+    def _detect_archive_type(self, filename):
+        """Detect the archive type based on file magic bytes.
+        
+        Args:
+            filename: The name of the archive file.
+            
+        Returns:
+            A string representing the archive type ('zip', 'tar', or 'tar.gz').
+        """
+        # Check if file exists before attempting detection
+        if not os.path.exists(filename):
+            # For non-existent files, detect based on extension
+            return self._detect_from_extension(filename)
+        
+        # Read the first few bytes to identify the file type
+        try:
+            with open(filename, 'rb') as f:
+                magic_bytes = f.read(8)  # Read first 8 bytes
+                
+                # ZIP: Starts with 'PK\x03\x04'
+                if magic_bytes.startswith(b'PK\x03\x04'):
+                    return 'zip'
+                
+                # GZIP: Starts with 0x1F 0x8B (use this for tar.gz)
+                if magic_bytes.startswith(b'\x1F\x8B'):
+                    return 'tar.gz'
+                
+                # TAR: Traditional tar files often start with filename (usually begin with non-zero ASCII)
+                # or have "ustar" at offset 257 (for modern tar)
+                # We'll need to do more checks for tar
+                if self._is_tar_file(filename):
+                    return 'tar'
+                
+                # If no magic bytes match, fall back to extension-based detection
+                return self._detect_from_extension(filename)
+        except:
+            # If there's any error reading the file, fall back to extension-based detection
+            return self._detect_from_extension(filename)
+
+    def _is_tar_file(self, filename):
+        """Check if a file is a valid TAR archive.
+        
+        Args:
+            filename: The name of the file to check.
+            
+        Returns:
+            True if the file is a valid TAR archive, False otherwise.
+        """
+        try:
+            # Try to open the file as a TAR archive
+            with tarfile.open(filename, 'r') as _:
+                return True
+        except:
+            return False
+
+    def _detect_from_extension(self, filename):
+        """Detect the archive type based on the file extension.
+        
+        Args:
+            filename: The name of the archive file.
+            
+        Returns:
+            A string representing the archive type ('zip', 'tar', or 'tar.gz').
+        """
+        # Convert to lowercase for case-insensitive comparison
+        lower_filename = filename.lower()
+        
+        if lower_filename.endswith('.tar.gz') or lower_filename.endswith('.tgz'):
+            return 'tar.gz'
+        elif lower_filename.endswith('.tar'):
+            return 'tar'
+        else:
+            # Default to ZIP
+            return 'zip'
+
     def _create_parser(self):
         """Create the command line argument parser."""
         parser = argparse.ArgumentParser(
@@ -34,9 +107,13 @@ class ArchiveAlchemist:
         
         # Global options
         parser.add_argument("-f", "--file", required=True, help="Archive file to create or modify")
-        parser.add_argument("-t", "--type", choices=["zip", "tar", "tar.gz"], default="zip",
-                        help="Archive type (default: zip)")
         parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+        class TypeAction(argparse.Action):
+            def __call__(self, parser, namespace, values, option_string=None):
+                setattr(namespace, 'type', values)
+                setattr(namespace, 'type_specified', True)
+        parser.add_argument("-t", "--type", choices=["zip", "tar", "tar.gz"], default="zip",
+                      action=TypeAction, help="Archive type (default: auto-detect from file extension)")
         
         # Subcommands
         subparsers = parser.add_subparsers(dest="command", help="Command to execute")
@@ -104,10 +181,21 @@ class ArchiveAlchemist:
         """Run the main program."""
         args = self.parser.parse_args()
         
+        # Initialize type_specified if it's not already set
+        if not hasattr(args, 'type_specified'):
+            args.type_specified = False
+        
         # Command will be required by parser, but for clarity:
         if args.command is None:
             self.parser.print_help()
             return
+        
+        # Detect archive type if not specified
+        if not args.type_specified and args.file:
+            detected_type = self._detect_archive_type(args.file)
+            args.type = detected_type
+            if args.verbose:
+                print(f"Auto-detected archive type: {args.type}")
         
         handler = self._get_handler(args)
         

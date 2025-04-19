@@ -48,7 +48,7 @@ run_test() {
 # Clean up any existing test archives
 cleanup() {
   echo "Cleaning up test archives..."
-  rm -f test_*.zip test_*.tar test_*.tar.gz *.txt
+  rm -f test_*.zip test_*.tar test_*.tar.gz *.txt *.unknown *.tgz test_magic.*
   rm -rf test_extract
   mkdir -p test_extract
 }
@@ -246,6 +246,54 @@ run_test "List - Long TAR listing" \
 run_test "List - Non-existent archive" \
   "true" \
   "$ALCHEMIST -f nonexistent.zip list 2>&1 | grep -q 'does not exist'"
+
+run_test "Auto-detect - TAR type from filename" \
+  "$ALCHEMIST -v -f test_autodetect.tar add file.txt --content 'TAR Content'" \
+  "tar -tvf test_autodetect.tar | grep -q 'file.txt'"
+
+run_test "Auto-detect - TAR.GZ type from filename" \
+  "$ALCHEMIST -v -f test_autodetect.tar.gz add file.txt --content 'TAR.GZ Content'" \
+  "tar -tzvf test_autodetect.tar.gz | grep -q 'file.txt'"
+
+run_test "Auto-detect - TGZ type from filename" \
+  "$ALCHEMIST -v -f test_autodetect.tgz add file.txt --content 'TGZ Content'" \
+  "tar -tzvf test_autodetect.tgz | grep -q 'file.txt'"
+
+run_test "Auto-detect - ZIP type from filename" \
+  "$ALCHEMIST -v -f test_autodetect.zip add file.txt --content 'ZIP Content'" \
+  "unzip -l test_autodetect.zip | grep -q 'file.txt'"
+
+run_test "Auto-detect - Default to ZIP for unknown extension" \
+  "$ALCHEMIST -v -f test_autodetect.unknown add file.txt --content 'Unknown Extension'" \
+  "unzip -l test_autodetect.unknown | grep -q 'file.txt'"
+
+run_test "Auto-detect - Override with explicit type flag" \
+  "$ALCHEMIST -v -f test_override.tar -t zip add file.txt --content 'Overridden Type'" \
+  "unzip -l test_override.tar | grep -q 'file.txt' && ! tar -tvf test_override.tar 2>/dev/null"
+
+# Test for magic bytes detection
+run_test "Magic Bytes - ZIP with wrong extension" \
+  "$ALCHEMIST -v -f test_magic.zip add file.txt --content 'ZIP Content' && \
+   cp test_magic.zip test_magic.wrongext" \
+  "$ALCHEMIST -v -f test_magic.wrongext list 2>&1 | grep -q 'Auto-detected archive type: zip' && \
+   unzip -l test_magic.wrongext | grep -q 'file.txt'"
+
+run_test "Magic Bytes - TAR with wrong extension" \
+  "$ALCHEMIST -v -f test_magic.tar -t tar add file.txt --content 'TAR Content' && \
+   cp test_magic.tar test_magic.dat" \
+  "$ALCHEMIST -v -f test_magic.dat list 2>&1 | grep -q 'Auto-detected archive type: tar' && \
+   tar -tvf test_magic.dat | grep -q 'file.txt'"
+
+run_test "Magic Bytes - TAR.GZ with wrong extension" \
+  "$ALCHEMIST -v -f test_magic.tar.gz -t tar.gz add file.txt --content 'GZIP Content' && \
+   cp test_magic.tar.gz test_magic.bin" \
+  "$ALCHEMIST -v -f test_magic.bin list 2>&1 | grep -q 'Auto-detected archive type: tar.gz' && \
+   tar -tzvf test_magic.bin | grep -q 'file.txt'"
+
+run_test "Magic Bytes - Fallback to extension for new file" \
+  "rm -f test_new_file.tar" \
+  "$ALCHEMIST -v -f test_new_file.tar add file.txt --content 'New TAR' 2>&1 | grep -q 'Auto-detected archive type: tar' && \
+   tar -tvf test_new_file.tar | grep -q 'file.txt'"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"

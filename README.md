@@ -33,6 +33,26 @@ sudo ln -s $(pwd)/archive-alchemist.py /usr/local/bin/archive-alchemist
 ./archive-alchemist.py -f archive.zip -t zip <command> [options]
 ```
 
+### Archive Type Detection
+
+Archive Alchemist determines the archive type in two ways:
+
+1. **Magic Bytes Detection**: For existing archives, the tool identifies the format by examining the file's content signature.
+
+2. **Extension-based Detection**: For new archives or when magic bytes detection fails, the tool uses the file extension:
+   - `.zip`: ZIP format
+   - `.tar`: TAR format
+   - `.tar.gz` or `.tgz`: Compressed TAR format
+
+For files with unrecognized extensions and no valid magic bytes, ZIP format is used by default.
+
+You can always override automatic detection by explicitly specifying the `-t` flag:
+
+```bash
+# Force TAR format regardless of extension or content:
+./archive-alchemist.py -f archive.zip -t tar add file.txt --content "Using TAR format"
+```
+
 ### Commands
 
 #### Add Files
