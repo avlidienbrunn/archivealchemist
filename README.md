@@ -35,7 +35,7 @@ sudo ln -s $(pwd)/archive-alchemist.py /usr/local/bin/archive-alchemist
 
 ### Archive Type Detection
 
-Archive Alchemist determines the archive type in two ways:
+If `-t`/`--type` flag is not specified, Archive Alchemist determines the archive type in two ways:
 
 1. **Magic Bytes Detection**: For existing archives, the tool identifies the format by examining the file's content signature.
 
