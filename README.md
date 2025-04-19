@@ -82,6 +82,19 @@ sudo ln -s $(pwd)/archive-alchemist.py /usr/local/bin/archive-alchemist
 ./archive-alchemist.py -v -f archive.tar -t tar remove directory/
 ```
 
+#### List Archive Contents
+
+```bash
+# List files in an archive
+./archive-alchemist.py -f archive.zip list
+
+# Show detailed listing with file attributes
+./archive-alchemist.py -f archive.tar -t tar list --long 1
+
+# or the short form
+./archive-alchemist.py -f archive.zip list -l 0
+```
+
 ### Examples for Security Testing
 
 #### Zip Slip Attack

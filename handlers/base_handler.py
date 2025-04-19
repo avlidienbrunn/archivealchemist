@@ -36,6 +36,59 @@ class BaseArchiveHandler(ABC):
         """Remove a file or directory from the archive."""
         pass
 
+    @abstractmethod
+    def list(self, args):
+        """List the contents of the archive."""
+        pass
+
+    def format_mode(self, mode):
+        """Format a file mode as a permission string (like ls -l).
+        
+        Args:
+            mode: The file mode as an integer.
+            
+        Returns:
+            A string representation of the file permissions.
+        """
+        if mode is None:
+            return "----------"
+            
+        result = ""
+        
+        # File type
+        if mode & 0o170000 == 0o120000:  # Symlink
+            result += "l"
+        elif mode & 0o170000 == 0o040000:  # Directory
+            result += "d"
+        else:  # Regular file
+            result += "-"
+        
+        # User permissions
+        result += "r" if mode & 0o400 else "-"
+        result += "w" if mode & 0o200 else "-"
+        if mode & 0o4000:  # Setuid
+            result += "s" if mode & 0o100 else "S"
+        else:
+            result += "x" if mode & 0o100 else "-"
+        
+        # Group permissions
+        result += "r" if mode & 0o40 else "-"
+        result += "w" if mode & 0o20 else "-"
+        if mode & 0o2000:  # Setgid
+            result += "s" if mode & 0o10 else "S"
+        else:
+            result += "x" if mode & 0o10 else "-"
+        
+        # Other permissions
+        result += "r" if mode & 0o4 else "-"
+        result += "w" if mode & 0o2 else "-"
+        if mode & 0o1000:  # Sticky
+            result += "t" if mode & 0o1 else "T"
+        else:
+            result += "x" if mode & 0o1 else "-"
+        
+        return result
+
     def get_content(self, args):
         """Get content from either --content or --content-file options.
         

@@ -89,6 +89,10 @@ class ArchiveAlchemist:
         # Remove command
         remove_parser = subparsers.add_parser("remove", help="Remove files from the archive")
         remove_parser.add_argument("path", help="Path within the archive to remove")
+
+        # List command
+        list_parser = subparsers.add_parser("list", help="List contents of the archive")
+        list_parser.add_argument("--long", "-l", type=int, default=1, help="Show detailed listing with file attributes")
         
         return parser
     
@@ -117,6 +121,8 @@ class ArchiveAlchemist:
             handler.modify(args)
         elif args.command == "remove":
             handler.remove(args)
+        elif args.command == "list":
+            handler.list(args)
         else:
             print(f"Error: Unknown command {args.command}")
 

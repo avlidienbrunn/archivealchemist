@@ -320,3 +320,62 @@ class ZipHandler(BaseArchiveHandler):
         
         except zipfile.BadZipFile:
             print(f"Error: {args.file} is not a valid ZIP file")
+
+    def list(self, args):
+        """List the contents of the ZIP archive."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        try:
+            with zipfile.ZipFile(args.file, "r") as zip_file:
+                entries = zip_file.infolist()
+                
+                # Sort entries by name
+                entries.sort(key=lambda e: e.filename)
+                
+                if not entries:
+                    print(f"Archive {args.file} is empty")
+                    return
+                
+                # Print header
+                if args.long:
+                    print(f"{'Permissions':<12} {'Size':>10} {'Modified':>20} {'Name'}")
+                    print(f"{'-'*12} {'-'*10} {'-'*20} {'-'*30}")
+                else:
+                    print(f"Contents of {args.file}:")
+                
+                # Print entries
+                for entry in entries:
+                    # Skip directories for simple listing
+                    if not args.long and entry.filename.endswith('/'):
+                        continue
+                    
+                    if args.long:
+                        # Extract date and time
+                        date_time = datetime(*entry.date_time)
+                        date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        # Get permissions 
+                        # ZIP uses the high bits of external_attr for Unix permissions
+                        mode = entry.external_attr >> 16
+                        perm_str = self.format_mode(mode)
+                        
+                        # Check if it's a symlink by looking at file mode
+                        is_symlink = mode & 0o170000 == 0o120000
+                        name = entry.filename
+                        
+                        # If it's a symlink, try to get target
+                        if is_symlink:
+                            try:
+                                target = zip_file.read(entry.filename).decode('utf-8')
+                                name = f"{entry.filename} -> {target}"
+                            except:
+                                pass
+                        
+                        print(f"{perm_str} {entry.file_size:>10} {date_str:>20} {name}")
+                    else:
+                        print(f"{entry.filename}")
+        
+        except zipfile.BadZipFile:
+            print(f"Error: {args.file} is not a valid ZIP file")

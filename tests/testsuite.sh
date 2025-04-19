@@ -209,6 +209,44 @@ run_test "Remove - Non-existent file" \
    $ALCHEMIST -v -f test_nonexistent.zip remove nonexistent.txt 2>&1 | grep -q 'not found'" \
   "[ \$(unzip -l test_nonexistent.zip | grep -c 'file.txt') -eq 1 ]"
 
+run_test "List - Simple ZIP listing" \
+  "$ALCHEMIST -v -f test_list.zip add file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_list.zip add file2.txt --content 'File 2' && \
+   $ALCHEMIST -v -f test_list.zip add dir/nested.txt --content 'Nested'" \
+  "$ALCHEMIST -f test_list.zip list -l 0 | grep -q 'file1.txt' && \
+   $ALCHEMIST -f test_list.zip list -l 0 | grep -q 'file2.txt' && \
+   $ALCHEMIST -f test_list.zip list -l 0 | grep -q 'dir/nested.txt'"
+
+run_test "List - Long ZIP listing" \
+  "$ALCHEMIST -v -f test_list_long.zip add file.txt --content 'Regular file' --mode 0644 && \
+   $ALCHEMIST -v -f test_list_long.zip add exec.sh --content '#!/bin/sh' --mode 0755 --setuid" \
+  "$ALCHEMIST -f test_list_long.zip list -l 1 | grep -q 'file.txt' && \
+   $ALCHEMIST -f test_list_long.zip list -l 1 | grep -q 'exec.sh' && \
+   $ALCHEMIST -f test_list_long.zip list -l 1 | grep -q -- '-rw-r--r--' && \
+   $ALCHEMIST -f test_list_long.zip list -l 1 | grep -q -- '-rwsr-xr-x'"
+
+run_test "List - Simple TAR listing" \
+  "$ALCHEMIST -v -f test_list.tar -t tar add file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_list.tar -t tar add file2.txt --content 'File 2' && \
+   $ALCHEMIST -v -f test_list.tar -t tar add dir/nested.txt --content 'Nested'" \
+  "$ALCHEMIST -f test_list.tar -t tar list -l 0 | grep -q 'file1.txt' && \
+   $ALCHEMIST -f test_list.tar -t tar list -l 0 | grep -q 'file2.txt' && \
+   $ALCHEMIST -f test_list.tar -t tar list -l 0 | grep -q 'dir/nested.txt'"
+
+run_test "List - Long TAR listing" \
+  "$ALCHEMIST -v -f test_list_long.tar -t tar add file.txt --content 'Regular file' --mode 0644 && \
+   $ALCHEMIST -v -f test_list_long.tar -t tar add exec.sh --content '#!/bin/sh' --mode 0755 --setuid && \
+   $ALCHEMIST -v -f test_list_long.tar -t tar add link.txt --symlink '/etc/passwd'" \
+  "$ALCHEMIST -f test_list_long.tar -t tar list -l 1 | grep -q 'file.txt' && \
+   $ALCHEMIST -f test_list_long.tar -t tar list -l 1 | grep -q 'exec.sh' && \
+   $ALCHEMIST -f test_list_long.tar -t tar list -l 1 | grep -q 'link.txt -> /etc/passwd' && \
+   $ALCHEMIST -f test_list_long.tar -t tar list -l 1 | grep -q -- '-rw-r--r--' && \
+   $ALCHEMIST -f test_list_long.tar -t tar list -l 1 | grep -q -- '-rwsr-xr-x'"
+
+run_test "List - Non-existent archive" \
+  "true" \
+  "$ALCHEMIST -f nonexistent.zip list 2>&1 | grep -q 'does not exist'"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

@@ -7,6 +7,7 @@ import io
 import os
 import tarfile
 import tempfile
+from datetime import datetime
 from handlers.base_handler import BaseArchiveHandler
 
 
@@ -446,6 +447,65 @@ class TarHandler(BaseArchiveHandler):
                     if args.verbose:
                         for path in paths_to_remove:
                             print(f"  - {path}")
+        
+        except tarfile.ReadError:
+            print(f"Error: {args.file} is not a valid TAR file")
+
+    def list(self, args):
+        """List the contents of the TAR archive."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        try:
+            read_mode = self._get_mode("r")
+            with tarfile.open(args.file, read_mode) as tar_file:
+                members = tar_file.getmembers()
+                
+                # Sort members by name
+                members.sort(key=lambda m: m.name)
+                
+                if not members:
+                    print(f"Archive {args.file} is empty")
+                    return
+                
+                # Print header
+                if args.long:
+                    print(f"{'Permissions':<12} {'Owner/Group':<15} {'Size':>10} {'Modified':>20} {'Name'}")
+                    print(f"{'-'*12} {'-'*15} {'-'*10} {'-'*20} {'-'*30}")
+                else:
+                    print(f"Contents of {args.file}:")
+                
+                # Print members
+                for member in members:
+                    # Skip directories for simple listing
+                    if not args.long and member.isdir():
+                        continue
+                    
+                    if args.long:
+                        # Format date and time
+                        date_time = datetime.fromtimestamp(member.mtime)
+                        date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        # Format permissions
+                        perm_str = self.format_mode(member.mode)
+                        
+                        # Format owner/group
+                        if member.uname and member.gname:
+                            owner_str = f"{member.uname}/{member.gname}"
+                        else:
+                            owner_str = f"{member.uid}/{member.gid}"
+                        
+                        # Handle symlinks
+                        name = member.name
+                        if member.issym():
+                            name = f"{member.name} -> {member.linkname}"
+                        elif member.islnk():
+                            name = f"{member.name} link to {member.linkname}"
+                        
+                        print(f"{perm_str} {owner_str:<15} {member.size:>10} {date_str:>20} {name}")
+                    else:
+                        print(f"{member.name}")
         
         except tarfile.ReadError:
             print(f"Error: {args.file} is not a valid TAR file")
