@@ -117,22 +117,6 @@ class BaseArchiveHandler(ABC):
         # Return the content argument or an empty string if neither is specified
         return args.content if args.content else ""
     
-    def create_temp_file(self, content=None):
-        """Create a temporary file with optional content."""
-        fd, temp_path = tempfile.mkstemp()
-        try:
-            if content is not None:
-                with os.fdopen(fd, 'w') as f:
-                    f.write(content)
-            else:
-                os.close(fd)
-        except:
-            os.close(fd)
-            os.unlink(temp_path)
-            raise
-            
-        return temp_path
-    
     def apply_special_bits(self, mode, args):
         """Apply special permission bits if requested."""
         if args.setuid:
