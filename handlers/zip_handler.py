@@ -272,3 +272,51 @@ class ZipHandler(BaseArchiveHandler):
         
         if args.verbose:
             print(f"Modified attributes of {args.path} in {args.file}")
+
+    def remove(self, args):
+        """Remove a file from the ZIP archive."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # Check if the archive exists
+        try:
+            with zipfile.ZipFile(args.file, "r") as zip_in:
+                # Get the list of entries
+                entries = zip_in.infolist()
+                
+                # Check if the path exists in the archive
+                paths_to_remove = []
+                for entry in entries:
+                    if entry.filename == args.path or entry.filename.startswith(args.path + "/"):
+                        paths_to_remove.append(entry.filename)
+                
+                if not paths_to_remove:
+                    print(f"Error: {args.path} not found in the archive")
+                    return
+                
+                # Get all entries except those we want to remove
+                entries_to_keep = [entry for entry in entries 
+                                if entry.filename not in paths_to_remove]
+                
+                # Create a new ZIP file
+                with zipfile.ZipFile(args.file + ".tmp", "w") as zip_out:
+                    # Copy all the other entries
+                    for entry in entries_to_keep:
+                        zip_out.writestr(entry, zip_in.read(entry.filename))
+            
+            # Replace the original file
+            os.remove(args.file)
+            os.rename(args.file + ".tmp", args.file)
+            
+            if args.verbose:
+                if len(paths_to_remove) == 1:
+                    print(f"Removed {paths_to_remove[0]} from {args.file}")
+                else:
+                    print(f"Removed {len(paths_to_remove)} entries from {args.file}")
+                    if args.verbose:
+                        for path in paths_to_remove:
+                            print(f"  - {path}")
+        
+        except zipfile.BadZipFile:
+            print(f"Error: {args.file} is not a valid ZIP file")

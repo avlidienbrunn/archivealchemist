@@ -30,6 +30,11 @@ class BaseArchiveHandler(ABC):
     def modify(self, args):
         """Modify file attributes in the archive."""
         pass
+    
+    @abstractmethod
+    def remove(self, args):
+        """Remove a file or directory from the archive."""
+        pass
 
     def get_content(self, args):
         """Get content from either --content or --content-file options.

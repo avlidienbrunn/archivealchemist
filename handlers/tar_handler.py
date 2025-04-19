@@ -395,3 +395,57 @@ class TarHandler(BaseArchiveHandler):
         
         if args.verbose:
             print(f"Modified attributes of {args.path} in {args.file}")
+
+    def remove(self, args):
+        """Remove a file from the TAR archive."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        # Open the existing archive
+        try:
+            read_mode = self._get_mode("r")
+            with tarfile.open(args.file, read_mode) as tar_in:
+                # Check if the path exists in the archive
+                member_names = [m.name for m in tar_in.getmembers()]
+                
+                # Find all paths to remove (including directories)
+                paths_to_remove = []
+                for name in member_names:
+                    if name == args.path or name.startswith(args.path + "/"):
+                        paths_to_remove.append(name)
+                
+                if not paths_to_remove:
+                    print(f"Error: {args.path} not found in the archive")
+                    return
+                
+                # Get all entries except those we want to remove
+                entries_to_keep = [entry for entry in tar_in.getmembers()
+                                if entry.name not in paths_to_remove]
+                
+                # Create a new TAR file
+                write_mode = self._get_mode("w")
+                with tarfile.open(args.file + ".tmp", write_mode) as tar_out:
+                    # Copy all the entries we want to keep
+                    for entry in entries_to_keep:
+                        if entry.isfile():
+                            file_data = tar_in.extractfile(entry)
+                            tar_out.addfile(entry, file_data)
+                        else:
+                            tar_out.addfile(entry)
+            
+            # Replace the original file
+            os.remove(args.file)
+            os.rename(args.file + ".tmp", args.file)
+            
+            if args.verbose:
+                if len(paths_to_remove) == 1:
+                    print(f"Removed {paths_to_remove[0]} from {args.file}")
+                else:
+                    print(f"Removed {len(paths_to_remove)} entries from {args.file}")
+                    if args.verbose:
+                        for path in paths_to_remove:
+                            print(f"  - {path}")
+        
+        except tarfile.ReadError:
+            print(f"Error: {args.file} is not a valid TAR file")

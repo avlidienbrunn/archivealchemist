@@ -174,6 +174,41 @@ run_test "Content File - Error on missing file" \
   "$ALCHEMIST -v -f test_missing_file.zip add missing.txt --content-file non_existent_file.txt" \
   "! [ -f test_missing_file.zip ] || [ \$(unzip -l test_missing_file.zip 2>/dev/null | grep -c 'missing.txt') -eq 0 ]"
 
+run_test "Remove - Single file from ZIP" \
+  "$ALCHEMIST -v -f test_remove.zip add file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_remove.zip add file2.txt --content 'File 2' && \
+   $ALCHEMIST -v -f test_remove.zip remove file1.txt" \
+  "[ \$(unzip -l test_remove.zip | grep -c 'file1.txt') -eq 0 ] && \
+   [ \$(unzip -l test_remove.zip | grep -c 'file2.txt') -eq 1 ]"
+
+run_test "Remove - Directory from ZIP" \
+  "$ALCHEMIST -v -f test_remove_dir.zip add dir/file1.txt --content 'Dir File 1' && \
+   $ALCHEMIST -v -f test_remove_dir.zip add dir/file2.txt --content 'Dir File 2' && \
+   $ALCHEMIST -v -f test_remove_dir.zip add outside.txt --content 'Outside' && \
+   $ALCHEMIST -v -f test_remove_dir.zip remove dir" \
+  "[ \$(unzip -l test_remove_dir.zip | grep -c 'dir/') -eq 0 ] && \
+   [ \$(unzip -l test_remove_dir.zip | grep -c 'outside.txt') -eq 1 ]"
+
+run_test "Remove - Single file from TAR" \
+  "$ALCHEMIST -v -f test_remove.tar -t tar add file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_remove.tar -t tar add file2.txt --content 'File 2' && \
+   $ALCHEMIST -v -f test_remove.tar -t tar remove file1.txt" \
+  "[ \$(tar -tvf test_remove.tar | grep -c 'file1.txt') -eq 0 ] && \
+   [ \$(tar -tvf test_remove.tar | grep -c 'file2.txt') -eq 1 ]"
+
+run_test "Remove - Directory from TAR" \
+  "$ALCHEMIST -v -f test_remove_dir.tar -t tar add dir/file1.txt --content 'Dir File 1' && \
+   $ALCHEMIST -v -f test_remove_dir.tar -t tar add dir/file2.txt --content 'Dir File 2' && \
+   $ALCHEMIST -v -f test_remove_dir.tar -t tar add outside.txt --content 'Outside' && \
+   $ALCHEMIST -v -f test_remove_dir.tar -t tar remove dir" \
+  "[ \$(tar -tvf test_remove_dir.tar | grep -c 'dir/') -eq 0 ] && \
+   [ \$(tar -tvf test_remove_dir.tar | grep -c 'outside.txt') -eq 1 ]"
+
+run_test "Remove - Non-existent file" \
+  "$ALCHEMIST -v -f test_nonexistent.zip add file.txt --content 'Content' && \
+   $ALCHEMIST -v -f test_nonexistent.zip remove nonexistent.txt 2>&1 | grep -q 'not found'" \
+  "[ \$(unzip -l test_nonexistent.zip | grep -c 'file.txt') -eq 1 ]"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

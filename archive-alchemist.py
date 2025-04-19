@@ -85,6 +85,10 @@ class ArchiveAlchemist:
         modify_parser.add_argument("--setuid", action="store_true", help="Set the setuid bit")
         modify_parser.add_argument("--setgid", action="store_true", help="Set the setgid bit")
         modify_parser.add_argument("--sticky", action="store_true", help="Set the sticky bit")
+
+        # Remove command
+        remove_parser = subparsers.add_parser("remove", help="Remove files from the archive")
+        remove_parser.add_argument("path", help="Path within the archive to remove")
         
         return parser
     
@@ -111,6 +115,8 @@ class ArchiveAlchemist:
             handler.append(args)
         elif args.command == "modify":
             handler.modify(args)
+        elif args.command == "remove":
+            handler.remove(args)
         else:
             print(f"Error: Unknown command {args.command}")
 

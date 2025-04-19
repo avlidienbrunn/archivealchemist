@@ -72,6 +72,16 @@ sudo ln -s $(pwd)/archive-alchemist.py /usr/local/bin/archive-alchemist
 ./archive-alchemist.py -f archive.tar -t tar modify hello.js --mode 0755 --uid 0 --gid 0 --setuid
 ```
 
+#### Remove Files
+
+```bash
+# Remove a file from an archive
+./archive-alchemist.py -v -f archive.zip remove file.txt
+
+# Remove a directory and all its contents
+./archive-alchemist.py -v -f archive.tar -t tar remove directory/
+```
+
 ### Examples for Security Testing
 
 #### Zip Slip Attack
