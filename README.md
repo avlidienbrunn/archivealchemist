@@ -44,7 +44,7 @@ sudo ln -s $(pwd)/archive-alchemist.py /usr/local/bin/archive-alchemist
 # Add a file with path traversal
 ./archive-alchemist.py -f archive.tar -t tar add "../../../etc/passwd" --content "fake passwd file"
 
-# Add a symlink (TAR only)
+# Add a symlink
 ./archive-alchemist.py -f archive.tar -t tar add hello.js --symlink "/tmp/xx.txt"
 
 # Add with permission bits
