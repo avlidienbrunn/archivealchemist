@@ -406,6 +406,14 @@ run_test "Extract - Vulnerable mode hardlinks" \
    grep -q 'Original content' test_extract_vuln_hardlink/original.txt && \
    grep -q 'Original content' test_extract_vuln_hardlink/hardlink.txt"
 
+# Test adding binary file to archive
+run_test "Append - File with binary data" \
+  "$ALCHEMIST -v -f test_append_binary.tar -t tar add original.txt --content '$(printf "c0ffee: \xc0\xff\xee")' && \
+   mkdir -p test_append_binary && \
+   $ALCHEMIST -v -f test_append_binary.tar -t tar extract --vulnerable --output-dir test_append_binary" \
+  "[ -f test_append_binary/original.txt ] && \
+   xxd -ps test_append_binary/original.txt | grep -q '6330666665653a20c0ffee'"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

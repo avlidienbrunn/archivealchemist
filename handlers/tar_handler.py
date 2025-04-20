@@ -152,8 +152,7 @@ class TarHandler(BaseArchiveHandler):
             else:
                 # Get content from either --content or --content-file
                 try:
-                    content = self.get_content(args)
-                    content_bytes = content.encode('utf-8')
+                    content_bytes = self.get_content(args)
                 except (ValueError, FileNotFoundError) as e:
                     print(f"Error: {e}")
                     return
@@ -244,8 +243,7 @@ class TarHandler(BaseArchiveHandler):
                 
                 # Create a new tarinfo with the same attributes
                 tarinfo = tarfile.TarInfo(args.path)
-                content_bytes = content.encode('utf-8')
-                tarinfo.size = len(content_bytes)
+                tarinfo.size = len(content)
                 tarinfo.mode = orig_member.mode
                 tarinfo.type = orig_member.type
                 tarinfo.linkname = orig_member.linkname
@@ -256,7 +254,7 @@ class TarHandler(BaseArchiveHandler):
                 tarinfo.mtime = orig_member.mtime
                 
                 # Add the replaced file with new content
-                tar_out.addfile(tarinfo, io.BytesIO(content_bytes))
+                tar_out.addfile(tarinfo, io.BytesIO(content))
         
         # Replace the original file
         os.remove(args.file)
@@ -304,7 +302,7 @@ class TarHandler(BaseArchiveHandler):
                 return
             
             # Extract the file content
-            existing_content = tar_ref.extractfile(args.path).read().decode("utf-8")
+            existing_content = tar_ref.extractfile(args.path).read()
             
             # Append content
             new_content = existing_content + append_content

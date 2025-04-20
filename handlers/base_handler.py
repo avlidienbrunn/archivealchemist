@@ -152,6 +152,10 @@ class BaseArchiveHandler(ABC):
         
         return result
 
+    def python_is_fing_ridiculous(self, str):
+        # This would take 0 minutes to fix in python2. Thanks, asshole encoding enforcers.
+        return str.encode('utf-8', errors='surrogateescape')
+
     def get_content(self, args):
         """Get content from either --content or --content-file options.
         
@@ -174,11 +178,13 @@ class BaseArchiveHandler(ABC):
                 raise FileNotFoundError(f"Content file not found: {args.content_file}")
                 
             # Read the file content
-            with open(args.content_file, 'r', encoding='utf-8') as f:
+            with open(args.content_file, 'rb') as f:
                 return f.read()
         
+        if args.content and type(args.content) == str:
+            args.content = self.python_is_fing_ridiculous(args.content)
         # Return the content argument or an empty string if neither is specified
-        return args.content if args.content else ""
+        return args.content if args.content else b""
     
     def apply_special_bits(self, mode, args):
         """Apply special permission bits if requested."""

@@ -184,7 +184,7 @@ class ZipHandler(BaseArchiveHandler):
                 return
             
             # Extract the file content
-            existing_content = zip_ref.read(args.path).decode("utf-8")
+            existing_content = zip_ref.read(args.path)
             
             # Append content
             new_content = existing_content + append_content
