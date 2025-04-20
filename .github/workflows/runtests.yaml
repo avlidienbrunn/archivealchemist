@@ -17,8 +17,11 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Change working directory
+        run: cd tests
+
       - name: Make script executable
-        run: chmod +x ./tests/your_test_script.sh
+        run: chmod +x testsuite.sh
 
       - name: Run test script
-        run: cd ./tests && ./testsuite.sh
+        run: ./testsuite.sh
