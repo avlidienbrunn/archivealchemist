@@ -406,13 +406,22 @@ run_test "Extract - Vulnerable mode hardlinks" \
    grep -q 'Original content' test_extract_vuln_hardlink/original.txt && \
    grep -q 'Original content' test_extract_vuln_hardlink/hardlink.txt"
 
-# Test adding binary file to archive
-run_test "Append - File with binary data" \
+# Test adding binary file content to archive
+run_test "Append - File with binary data from arg" \
   "$ALCHEMIST -v -f test_extract_append_binary.tar -t tar add original.txt --content '$(printf "c0ffee: \xc0\xff\xee")' && \
    mkdir -p test_extract_append_binary && \
    $ALCHEMIST -v -f test_extract_append_binary.tar -t tar extract --vulnerable --output-dir test_extract_append_binary" \
   "[ -f test_extract_append_binary/original.txt ] && \
    xxd -ps test_extract_append_binary/original.txt | grep -q '6330666665653a20c0ffee'"
+
+# Test adding binary file to archive
+run_test "Append - File with binary data from file" \
+  "printf 'c0ffee: \xc0\xff\xee' > binary-data.txt && \
+   $ALCHEMIST -v -f test_extract_append_binary_fromfile.tar -t tar add original.txt --content-file binary-data.txt && \
+   mkdir -p test_extract_append_binary_fromfile && \
+   $ALCHEMIST -v -f test_extract_append_binary_fromfile.tar -t tar extract --vulnerable --output-dir test_extract_append_binary_fromfile" \
+  "[ -f test_extract_append_binary_fromfile/original.txt ] && \
+   xxd -ps test_extract_append_binary_fromfile/original.txt | grep -q '6330666665653a20c0ffee'"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
