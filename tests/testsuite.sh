@@ -423,6 +423,54 @@ run_test "Append - File with binary data from file" \
   "[ -f test_extract_append_binary_fromfile/original.txt ] && \
    xxd -ps test_extract_append_binary_fromfile/original.txt | grep -q '6330666665653a20c0ffee'"
 
+# Test converting a regular file to a symlink in TAR
+run_test "TAR - Modify file to symlink" \
+  "$ALCHEMIST -v -f test_modify_to_symlink.tar -t tar add file.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_modify_to_symlink.tar -t tar modify file.txt --symlink '/etc/target'" \
+  "tar -tvf test_modify_to_symlink.tar | grep -q 'file.txt -> /etc/target'"
+
+# Test converting a regular file to a hardlink in TAR
+run_test "TAR - Modify file to hardlink" \
+  "$ALCHEMIST -v -f test_modify_to_hardlink.tar -t tar add original.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_modify_to_hardlink.tar -t tar add link.txt --content 'Will be replaced' && \
+   $ALCHEMIST -v -f test_modify_to_hardlink.tar -t tar modify link.txt --hardlink 'original.txt'" \
+  "tar -tvf test_modify_to_hardlink.tar | grep -q 'link.txt link to original.txt'"
+
+# Test converting a regular file to a symlink in ZIP
+run_test "ZIP - Modify file to symlink" \
+  "$ALCHEMIST -v -f test_modify_to_symlink.zip add file.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_modify_to_symlink.zip modify file.txt --symlink '/etc/target'" \
+  "unzip -v test_modify_to_symlink.zip | grep -q 'file.txt' && \
+   [ \"\$(unzip -p test_modify_to_symlink.zip file.txt)\" = \"/etc/target\" ]"
+
+# Test converting a regular file to a hardlink in ZIP (which doesn't natively support hardlinks)
+run_test "ZIP - Modify file to hardlink (fallback to regular file)" \
+  "$ALCHEMIST -v -f test_modify_to_hardlink.zip add original.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_modify_to_hardlink.zip add link.txt --content 'Will be replaced' && \
+   $ALCHEMIST -v -f test_modify_to_hardlink.zip modify link.txt --hardlink 'original.txt'" \
+  "unzip -v test_modify_to_hardlink.zip | grep -q 'link.txt' && \
+   [ \"\$(unzip -p test_modify_to_hardlink.zip link.txt)\" = \"original.txt\" ]"
+
+# Test extracting a file that was modified to be a symlink
+run_test "Extract - Modified symlink extraction" \
+  "$ALCHEMIST -v -f test_extract_modified_symlink.tar -t tar add target.txt --content 'Target content' && \
+   $ALCHEMIST -v -f test_extract_modified_symlink.tar -t tar add file.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_extract_modified_symlink.tar -t tar modify file.txt --symlink 'target.txt' && \
+   mkdir -p test_extract_modified_symlink && \
+   $ALCHEMIST -v -f test_extract_modified_symlink.tar -t tar extract --vulnerable --output-dir test_extract_modified_symlink" \
+  "[ -f test_extract_modified_symlink/target.txt ] && \
+   [ -L test_extract_modified_symlink/file.txt ] && \
+   LINK_TARGET=\$(readlink test_extract_modified_symlink/file.txt) && \
+   [ \"\$LINK_TARGET\" = \"target.txt\" ] && \
+   grep -q 'Target content' test_extract_modified_symlink/target.txt"
+
+# Test with preserved mode bits when converting to symlink
+run_test "TAR - Preserve mode bits when converting to symlink" \
+  "$ALCHEMIST -v -f test_symlink_mode.tar -t tar add file.txt --content 'Original content' --mode 0755 && \
+   $ALCHEMIST -v -f test_symlink_mode.tar -t tar modify file.txt --symlink '/etc/target' --mode 0777" \
+  "tar -tvf test_symlink_mode.tar | grep -q 'file.txt -> /etc/target' && \
+   [ \$(tar -tvf test_symlink_mode.tar | grep 'file.txt' | grep -c 'rwxrwxrwx') -eq 1 ]"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

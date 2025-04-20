@@ -214,14 +214,19 @@ class ZipHandler(BaseArchiveHandler):
             print(f"Error: Archive {args.file} does not exist")
             return
         
+        # Check for both symlink and hardlink options
+        if args.symlink and args.hardlink:
+            print("Error: Cannot specify both --symlink and --hardlink")
+            return
+        
         # For ZIP, we need to extract, modify, and rewrite
         with zipfile.ZipFile(args.file, "r") as zip_in:
             if args.path not in zip_in.namelist():
                 print(f"Error: {args.path} not found in the archive")
                 return
             
-            # Extract the file content
-            content = zip_in.read(args.path)
+            # Extract the file content (if we're not converting to a link)
+            content = zip_in.read(args.path) if not (args.symlink or args.hardlink) else None
             
             # Get the original info
             orig_info = zip_in.getinfo(args.path)
@@ -236,42 +241,82 @@ class ZipHandler(BaseArchiveHandler):
                 for entry in entries:
                     zip_out.writestr(entry, zip_in.read(entry.filename))
                 
-                # Create new info with modified attributes
+                # Create new info
                 info = zipfile.ZipInfo(args.path)
-                info.date_time = orig_info.date_time
+                info.date_time = orig_info.date_time if args.mtime is None else datetime.fromtimestamp(args.mtime).timetuple()[:6]
                 info.comment = orig_info.comment
                 info.extra = orig_info.extra
                 info.create_system = orig_info.create_system
                 
-                # Apply changes
-                if args.mode:
-                    info.external_attr = args.mode << 16
-                else:
-                    info.external_attr = orig_info.external_attr
-                
-                if args.mtime:
-                    dt = datetime.fromtimestamp(args.mtime)
-                    info.date_time = (dt.year, dt.month, dt.day, 
-                                    dt.hour, dt.minute, dt.second)
-                
-                # Set special bits if requested
-                if args.setuid or args.setgid or args.sticky:
-                    # Get current mode from external_attr
-                    mode = (orig_info.external_attr >> 16) & 0o777
+                # Convert to symlink
+                if args.symlink:
+                    # Set the external attributes to mark as a symlink
+                    # Unix symlink file mode (0120000) shifted left 16 bits
+                    symlink_mode = 0o120000
                     if args.mode:
-                        mode = args.mode
-                    mode = self.apply_special_bits(mode, args)
-                    info.external_attr = mode << 16
+                        symlink_mode = (args.mode & 0o777) | 0o120000
+                    info.external_attr = symlink_mode << 16
+                    
+                    # Set symlink target as the file content
+                    zip_out.writestr(info, args.symlink)
+                    
+                    if args.verbose:
+                        print(f"Converting {args.path} to symlink -> {args.symlink}")
                 
-                # Add the modified entry
-                zip_out.writestr(info, content)
+                # Convert to hardlink - ZIP doesn't support hardlinks natively
+                # We'll warn the user and create a file with the target as content
+                elif args.hardlink:
+                    print("Warning: ZIP format doesn't support hardlinks. "
+                        "Creating a file with hardlink target as content.")
+                    
+                    # Apply regular file attributes
+                    if args.mode:
+                        info.external_attr = args.mode << 16
+                    else:
+                        info.external_attr = orig_info.external_attr
+                    
+                    # Set special bits if requested
+                    if args.setuid or args.setgid or args.sticky:
+                        mode = (orig_info.external_attr >> 16) & 0o777
+                        if args.mode:
+                            mode = args.mode
+                        mode = self.apply_special_bits(mode, args)
+                        info.external_attr = mode << 16
+                    
+                    # Add the file with hardlink target as content
+                    zip_out.writestr(info, args.hardlink)
+                
+                # Regular attribute modification
+                else:
+                    # Apply changes
+                    if args.mode:
+                        info.external_attr = args.mode << 16
+                    else:
+                        info.external_attr = orig_info.external_attr
+                    
+                    # Set special bits if requested
+                    if args.setuid or args.setgid or args.sticky:
+                        # Get current mode from external_attr
+                        mode = (orig_info.external_attr >> 16) & 0o777
+                        if args.mode:
+                            mode = args.mode
+                        mode = self.apply_special_bits(mode, args)
+                        info.external_attr = mode << 16
+                    
+                    # Add the modified entry with original content
+                    zip_out.writestr(info, content)
         
         # Replace the original file
         os.remove(args.file)
         os.rename(args.file + ".tmp", args.file)
         
         if args.verbose:
-            print(f"Modified attributes of {args.path} in {args.file}")
+            if args.symlink:
+                print(f"Modified {args.path} to be a symlink to {args.symlink} in {args.file}")
+            elif args.hardlink:
+                print(f"Modified {args.path} to be a hardlink to {args.hardlink} in {args.file}")
+            else:
+                print(f"Modified attributes of {args.path} in {args.file}")
 
     def remove(self, args):
         """Remove a file from the ZIP archive."""

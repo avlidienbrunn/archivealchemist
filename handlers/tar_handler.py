@@ -332,6 +332,11 @@ class TarHandler(BaseArchiveHandler):
             print(f"Error: Archive {args.file} does not exist")
             return
         
+        # Check for both symlink and hardlink options
+        if args.symlink and args.hardlink:
+            print("Error: Cannot specify both --symlink and --hardlink")
+            return
+
         # For TAR, we need to extract, modify, and rewrite the archive
         with tempfile.TemporaryDirectory() as temp_dir:
             # Open the existing archive
@@ -347,8 +352,7 @@ class TarHandler(BaseArchiveHandler):
                 orig_member = next(m for m in tar_in.getmembers() if m.name == args.path)
                 
                 # Get all other entries
-                entries = [entry for entry in tar_in.getmembers()
-                         if entry.name != args.path]
+                entries = [entry for entry in tar_in.getmembers() if entry.name != args.path]
                 
                 # Create a new TAR file
                 write_mode = self._get_mode("w")
@@ -361,11 +365,38 @@ class TarHandler(BaseArchiveHandler):
                         else:
                             tar_out.addfile(entry)
                     
-                    # Create a new tarinfo with modified attributes
+                    # Create a new tarinfo based on the modification type
                     tarinfo = tarfile.TarInfo(args.path)
-                    tarinfo.size = orig_member.size
-                    tarinfo.type = orig_member.type
-                    tarinfo.linkname = orig_member.linkname
+                    
+                    # Handle conversion to symlink
+                    if args.symlink:
+                        tarinfo.type = tarfile.SYMTYPE
+                        tarinfo.linkname = args.symlink
+                        tarinfo.size = 0  # Symlinks don't have content
+                        
+                        if args.verbose:
+                            print(f"Converting {args.path} to symlink -> {args.symlink}")
+                    
+                    # Handle conversion to hardlink
+                    elif args.hardlink:
+                        tarinfo.type = tarfile.LNKTYPE
+                        tarinfo.linkname = args.hardlink
+                        tarinfo.size = 0  # Hardlinks don't have content
+                        
+                        if args.verbose:
+                            print(f"Converting {args.path} to hardlink -> {args.hardlink}")
+                    
+                    # Normal attribute modification
+                    else:
+                        tarinfo.size = orig_member.size
+                        tarinfo.type = orig_member.type
+                        tarinfo.linkname = orig_member.linkname
+                        
+                        # Add the file data if it's a regular file
+                        if orig_member.isfile():
+                            file_data = tar_in.extractfile(orig_member)
+                    
+                    # Set common attributes
                     tarinfo.uid = orig_member.uid if args.uid is None else args.uid
                     tarinfo.gid = orig_member.gid if args.gid is None else args.gid
                     tarinfo.uname = orig_member.uname
@@ -382,8 +413,7 @@ class TarHandler(BaseArchiveHandler):
                     tarinfo.mode = mode
                     
                     # Add the modified file to the archive
-                    if orig_member.isfile():
-                        file_data = tar_in.extractfile(orig_member)
+                    if not args.symlink and not args.hardlink and orig_member.isfile():
                         tar_out.addfile(tarinfo, file_data)
                     else:
                         tar_out.addfile(tarinfo)
@@ -393,7 +423,12 @@ class TarHandler(BaseArchiveHandler):
             os.rename(args.file + ".tmp", args.file)
         
         if args.verbose:
-            print(f"Modified attributes of {args.path} in {args.file}")
+            if args.symlink:
+                print(f"Modified {args.path} to be a symlink to {args.symlink} in {args.file}")
+            elif args.hardlink:
+                print(f"Modified {args.path} to be a hardlink to {args.hardlink} in {args.file}")
+            else:
+                print(f"Modified attributes of {args.path} in {args.file}")
 
     def remove(self, args):
         """Remove a file from the TAR archive."""

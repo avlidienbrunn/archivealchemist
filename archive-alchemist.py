@@ -162,6 +162,9 @@ class ArchiveAlchemist:
         modify_parser.add_argument("--setuid", action="store_true", help="Set the setuid bit")
         modify_parser.add_argument("--setgid", action="store_true", help="Set the setgid bit")
         modify_parser.add_argument("--sticky", action="store_true", help="Set the sticky bit")
+        modify_parser.add_argument("--symlink", help="Convert file to a symlink pointing to this target")
+        modify_parser.add_argument("--hardlink", help="Convert file to a hardlink pointing to this target")
+
 
         # Remove command
         remove_parser = subparsers.add_parser("remove", help="Remove files from the archive")
