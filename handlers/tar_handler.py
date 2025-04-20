@@ -95,6 +95,7 @@ class TarHandler(BaseArchiveHandler):
                 tarinfo.type = tarfile.SYMTYPE
                 tarinfo.linkname = args.symlink
                 tarinfo.size = 0  # Symlinks don't have content
+                tarinfo.mode = 0o744
                 
                 # Apply attributes if specified
                 if args.mode:
@@ -125,6 +126,7 @@ class TarHandler(BaseArchiveHandler):
                 tarinfo.type = tarfile.LNKTYPE
                 tarinfo.linkname = args.hardlink
                 tarinfo.size = 0  # Hardlinks don't have content
+                tarinfo.mode = 0o744
                 
                 # Apply attributes if specified
                 if args.mode:
@@ -160,6 +162,7 @@ class TarHandler(BaseArchiveHandler):
                 # Create a tarinfo for the file
                 tarinfo = tarfile.TarInfo(args.path)
                 tarinfo.size = len(content_bytes)
+                tarinfo.mode = 0o744
                 
                 # Apply attributes if specified
                 if args.mode:

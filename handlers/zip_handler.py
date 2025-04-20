@@ -77,7 +77,7 @@ class ZipHandler(BaseArchiveHandler):
                     info.external_attr = args.mode << 16
                 else:
                     # Default to 0o644
-                    info.external_attr = 0o644 << 16
+                    info.external_attr = 0o744 << 16
                 
                 # Set modification time if specified
                 if args.mtime:
@@ -88,7 +88,7 @@ class ZipHandler(BaseArchiveHandler):
                 
                 # Set special bits if requested
                 if args.setuid or args.setgid or args.sticky:
-                    mode = 0o644  # default
+                    mode = 0o744  # default
                     if args.mode:
                         mode = args.mode
                     mode = self.apply_special_bits(mode, args)
