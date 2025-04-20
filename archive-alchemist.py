@@ -126,6 +126,7 @@ class ArchiveAlchemist:
         add_parser.add_argument("path", help="Path within the archive")
         add_parser.add_argument("--content", help="Content to add to the file")
         add_parser.add_argument("--content-file", help="Path to a local file whose content should be added")
+        add_parser.add_argument("--content-directory", help="Path to a local directory to add recursively")
         add_parser.add_argument("--symlink", help="Create a symlink to this target")
         add_parser.add_argument("--hardlink", help="Create a hardlink to this target")
         add_parser.add_argument("--mode", type=lambda x: int(x, 8), help="File mode (octal)")
@@ -210,7 +211,10 @@ class ArchiveAlchemist:
         handler = self._get_handler(args)
         
         if args.command == "add":
-            handler.add(args)
+            if getattr(args, 'content_directory', None):
+                handler.add_directory(args)
+            else:
+                handler.add(args)
         elif args.command == "replace":
             handler.replace(args)
         elif args.command == "append":

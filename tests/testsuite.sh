@@ -51,6 +51,8 @@ cleanup() {
   rm -f test_*.zip test_*.tar test_*.tar.gz *.txt *.unknown *.tgz test_magic.*
   rm -rf test_extract
   rm -rf test_extract_*
+  rm -rf test_dir_*
+  rm -rf test_empty_dirs
   mkdir -p test_extract
 }
 
@@ -470,6 +472,90 @@ run_test "TAR - Preserve mode bits when converting to symlink" \
    $ALCHEMIST -v -f test_symlink_mode.tar -t tar modify file.txt --symlink '/etc/target' --mode 0777" \
   "tar -tvf test_symlink_mode.tar | grep -q 'file.txt -> /etc/target' && \
    [ \$(tar -tvf test_symlink_mode.tar | grep 'file.txt' | grep -c 'rwxrwxrwx') -eq 1 ]"
+
+# Test for adding a directory structure - basic case
+run_test "Directory - Add basic directory" \
+  "mkdir -p test_dir_src/subdir && \
+   echo 'File 1' > test_dir_src/file1.txt && \
+   echo 'Subdir file' > test_dir_src/subdir/file2.txt && \
+   $ALCHEMIST -v -f test_dir_add.zip add archive/ --content-directory test_dir_src" \
+  "unzip -l test_dir_add.zip | grep -q 'archive/' && \
+   unzip -l test_dir_add.zip | grep -q 'archive/file1.txt' && \
+   unzip -l test_dir_add.zip | grep -q 'archive/subdir/' && \
+   unzip -l test_dir_add.zip | grep -q 'archive/subdir/file2.txt' && \
+   CONTENT1=\$(unzip -p test_dir_add.zip archive/file1.txt) && \
+   [ \"\$CONTENT1\" = \"File 1\" ] && \
+   CONTENT2=\$(unzip -p test_dir_add.zip archive/subdir/file2.txt) && \
+   [ \"\$CONTENT2\" = \"Subdir file\" ]"
+
+# Test for adding a directory structure to TAR
+run_test "Directory - Add directory to TAR" \
+  "mkdir -p test_dir_src_tar/subdir && \
+   echo 'File 1' > test_dir_src_tar/file1.txt && \
+   echo 'Subdir file' > test_dir_src_tar/subdir/file2.txt && \
+   $ALCHEMIST -v -f test_dir_add.tar -t tar add archive/ --content-directory test_dir_src_tar" \
+  "tar -tvf test_dir_add.tar | grep -q 'archive/' && \
+   tar -tvf test_dir_add.tar | grep -q 'archive/file1.txt' && \
+   tar -tvf test_dir_add.tar | grep -q 'archive/subdir/' && \
+   tar -tvf test_dir_add.tar | grep -q 'archive/subdir/file2.txt' && \
+   CONTENT1=\$(tar -xOf test_dir_add.tar archive/file1.txt) && \
+   [ \"\$CONTENT1\" = \"File 1\" ] && \
+   CONTENT2=\$(tar -xOf test_dir_add.tar archive/subdir/file2.txt) && \
+   [ \"\$CONTENT2\" = \"Subdir file\" ]"
+
+# Test for preserving empty directories
+run_test "Directory - Preserve empty directories" \
+  "mkdir -p test_empty_dirs/empty1 test_empty_dirs/empty2/empty3 && \
+   echo 'Not empty' > test_empty_dirs/file.txt && \
+   $ALCHEMIST -v -f test_empty_dirs.zip add root/ --content-directory test_empty_dirs" \
+  "mkdir -p test_extract_empty && \
+   unzip test_empty_dirs.zip -d test_extract_empty && \
+   [ -d test_extract_empty/root/empty1 ] && \
+   [ -d test_extract_empty/root/empty2/empty3 ]"
+
+# Test for file symlinks
+run_test "Directory - File symlinks" \
+  "mkdir -p test_dir_symlinks && \
+   echo 'Target file' > test_dir_symlinks/target.txt && \
+   ln -sf target.txt test_dir_symlinks/link.txt && \
+   $ALCHEMIST -v -f test_symlinks.zip add archive/ --content-directory test_dir_symlinks" \
+  "unzip -l test_symlinks.zip | grep -q 'archive/target.txt' && \
+   unzip -l test_symlinks.zip | grep -q 'archive/link.txt' && \
+   content=\$(unzip -p test_symlinks.zip archive/link.txt) && \
+   [ \"\$content\" = \"target.txt\" ]"
+
+# Test for directory symlinks
+run_test "Directory - Directory symlinks" \
+  "mkdir -p test_dir_symlinks2/real_dir && \
+   echo 'File in real dir' > test_dir_symlinks2/real_dir/file.txt && \
+   ln -sf real_dir test_dir_symlinks2/link_dir && \
+   $ALCHEMIST -v -f test_dir_symlinks.tar -t tar add archive/ --content-directory test_dir_symlinks2" \
+  "tar -tvf test_dir_symlinks.tar | grep -q 'archive/real_dir/' && \
+   tar -tvf test_dir_symlinks.tar | grep -q 'archive/real_dir/file.txt' && \
+   tar -tvf test_dir_symlinks.tar | grep -q 'archive/link_dir -> real_dir'"
+
+# Test with mode and owner attributes
+run_test "Directory - With attributes" \
+  "mkdir -p test_dir_attrs/subdir && \
+   echo 'File with attributes' > test_dir_attrs/file.txt && \
+   $ALCHEMIST -v -f test_dir_attrs.tar -t tar add archive/ --content-directory test_dir_attrs --mode 0755 --uid 1000 --gid 1000" \
+  "tar -tvf test_dir_attrs.tar | grep 'archive/file.txt' | grep -q '1000/1000' && \
+   tar -tvf test_dir_attrs.tar | grep 'archive/file.txt' | grep -q 'rwxr-xr-x'"
+
+# Test extraction of added directory
+run_test "Directory - Extract added directory" \
+  "mkdir -p test_dir_extract/subdir && \
+   echo 'File 1' > test_dir_extract/file1.txt && \
+   echo 'Subdir file' > test_dir_extract/subdir/file2.txt && \
+   $ALCHEMIST -v -f test_dir_extract.zip add archive/ --content-directory test_dir_extract && \
+   mkdir -p test_extract_dir && \
+   $ALCHEMIST -v -f test_dir_extract.zip extract --output-dir test_extract_dir" \
+  "[ -f test_extract_dir/archive/file1.txt ] && \
+   [ -f test_extract_dir/archive/subdir/file2.txt ] && \
+   CONTENT1=\$(cat test_extract_dir/archive/file1.txt) && \
+   [ \"\$CONTENT1\" = \"File 1\" ] && \
+   CONTENT2=\$(cat test_extract_dir/archive/subdir/file2.txt) && \
+   [ \"\$CONTENT2\" = \"Subdir file\" ]"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
