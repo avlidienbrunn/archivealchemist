@@ -27,8 +27,30 @@ class ZipHandler(BaseArchiveHandler):
     def add(self, args):
         """Add a file or symlink to the ZIP archive."""
         # Create archive or open existing
-        if os.path.exists(args.file):
+        if os.path.exists(args.file):            
             archive = self._open_existing_archive(args.file)
+
+            # --content-directory should replace if exists
+            file_exists = args.path in archive.namelist()
+            if file_exists and getattr(args, 'content_directory', None) is not None:
+                # Create temporary args for replace
+                replace_args = type('Args', (), {
+                    'file': args.file,
+                    'path': args.path,
+                    'content': args.content,
+                    'content_file': args.content_file,
+                    'verbose': args.verbose,
+                    'require_content': False,
+                    'mode': args.mode if hasattr(args, 'mode') else None,
+                    'mtime': args.mtime if hasattr(args, 'mtime') else None,
+                    'symlink': args.symlink if hasattr(args, 'symlink') else None,
+                    'hardlink': args.hardlink if hasattr(args, 'hardlink') else None,
+                    'setuid': args.setuid if hasattr(args, 'setuid') else False,
+                    'setgid': args.setgid if hasattr(args, 'setgid') else False,
+                    'sticky': args.sticky if hasattr(args, 'sticky') else False
+                })
+                
+                return self.replace(replace_args)
         else:
             archive = self._create_new_archive(args.file)
         

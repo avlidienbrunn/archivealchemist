@@ -607,6 +607,81 @@ run_test "Directory - Preserve permissions in ZIP" \
   "[ \$(stat -c '%a' test_extract_zip_perms/archive/regular.txt) = '644' ] && \
    [ \$(stat -c '%a' test_extract_zip_perms/archive/exec.sh) = '755' ]"
 
+# Test for overwriting existing files with --content-directory
+run_test "Directory - Overwrite existing files" \
+  "rm -f test_overwrite.zip && \
+   # First add some initial files
+   $ALCHEMIST -v -f test_overwrite.zip add archive/file1.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_overwrite.zip add archive/file2.txt --content 'Will be replaced' && \
+   # Now create local directory with modified files
+   mkdir -p test_dir_overwrite && \
+   echo 'Updated content' > test_dir_overwrite/file1.txt && \
+   echo 'New file' > test_dir_overwrite/file3.txt && \
+   # Add directory which should update existing files
+   $ALCHEMIST -v -f test_overwrite.zip add archive/ --content-directory test_dir_overwrite" \
+  "unzip -l test_overwrite.zip | grep -q 'archive/file1.txt' && \
+   unzip -l test_overwrite.zip | grep -q 'archive/file2.txt' && \
+   unzip -l test_overwrite.zip | grep -q 'archive/file3.txt' && \
+   CONTENT1=\$(unzip -p test_overwrite.zip archive/file1.txt) && \
+   [ \"\$CONTENT1\" = \"Updated content\" ] && \
+   CONTENT2=\$(unzip -p test_overwrite.zip archive/file2.txt) && \
+   [ \"\$CONTENT2\" = \"Will be replaced\" ] && \
+   CONTENT3=\$(unzip -p test_overwrite.zip archive/file3.txt) && \
+   [ \"\$CONTENT3\" = \"New file\" ]"
+
+# Test for overwriting a file with a symlink
+run_test "Directory - Overwrite file with symlink" \
+  "rm -f test_overwrite_symlink.tar && \
+   # First add a regular file
+   $ALCHEMIST -v -f test_overwrite_symlink.tar -t tar add archive/target.txt --content 'Target content' && \
+   $ALCHEMIST -v -f test_overwrite_symlink.tar -t tar add archive/regular.txt --content 'Will be a symlink' && \
+   # Now create directory with a symlink
+   mkdir -p test_dir_overwrite_symlink && \
+   echo 'Target file' > test_dir_overwrite_symlink/target.txt && \
+   ln -sf target.txt test_dir_overwrite_symlink/regular.txt && \
+   # Add directory which should update the file to a symlink
+   $ALCHEMIST -v -f test_overwrite_symlink.tar -t tar add archive/ --content-directory test_dir_overwrite_symlink" \
+  "tar -tvf test_overwrite_symlink.tar | grep -q 'archive/target.txt' && \
+   tar -tvf test_overwrite_symlink.tar | grep -q 'archive/regular.txt -> target.txt'"
+
+# Test for overwriting with updated permissions
+run_test "Directory - Overwrite with updated permissions" \
+  "rm -f test_overwrite_perms.tar && \
+   # First add a file with basic permissions
+   $ALCHEMIST -v -f test_overwrite_perms.tar -t tar add archive/script.sh --content '#!/bin/sh\necho test' --mode 0644 && \
+   # Now create directory with executable file
+   mkdir -p test_dir_overwrite_perms && \
+   echo '#!/bin/sh\necho updated' > test_dir_overwrite_perms/script.sh && \
+   chmod 0755 test_dir_overwrite_perms/script.sh && \
+   # Add directory which should update permissions
+   $ALCHEMIST -v -f test_overwrite_perms.tar -t tar add archive/ --content-directory test_dir_overwrite_perms" \
+  "tar -tvf test_overwrite_perms.tar | grep 'archive/script.sh' | grep -q 'rwxr-xr-x' && \
+   CONTENT=\$(tar -xOf test_overwrite_perms.tar archive/script.sh) && \
+   [ \"\$CONTENT\" = \"#!/bin/sh\necho updated\" ]"
+
+# Test for overwriting in nested directory structure
+run_test "Directory - Overwrite in nested structure" \
+  "rm -f test_overwrite_nested.zip && \
+   # First add nested structure
+   $ALCHEMIST -v -f test_overwrite_nested.zip add archive/dir1/file.txt --content 'Original' && \
+   $ALCHEMIST -v -f test_overwrite_nested.zip add archive/dir2/file.txt --content 'Not changed' && \
+   # Now create directory with modified nested structure
+   mkdir -p test_dir_overwrite_nested/dir1 && \
+   echo 'Updated' > test_dir_overwrite_nested/dir1/file.txt && \
+   mkdir -p test_dir_overwrite_nested/dir3 && \
+   echo 'New directory' > test_dir_overwrite_nested/dir3/file.txt && \
+   # Add directory which should update files in dir1 and add dir3
+   $ALCHEMIST -v -f test_overwrite_nested.zip add archive/ --content-directory test_dir_overwrite_nested" \
+  "unzip -l test_overwrite_nested.zip | grep -q 'archive/dir1/file.txt' && \
+   unzip -l test_overwrite_nested.zip | grep -q 'archive/dir2/file.txt' && \
+   unzip -l test_overwrite_nested.zip | grep -q 'archive/dir3/file.txt' && \
+   CONTENT1=\$(unzip -p test_overwrite_nested.zip archive/dir1/file.txt) && \
+   [ \"\$CONTENT1\" = \"Updated\" ] && \
+   CONTENT2=\$(unzip -p test_overwrite_nested.zip archive/dir2/file.txt) && \
+   [ \"\$CONTENT2\" = \"Not changed\" ] && \
+   CONTENT3=\$(unzip -p test_overwrite_nested.zip archive/dir3/file.txt) && \
+   [ \"\$CONTENT3\" = \"New directory\" ]"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

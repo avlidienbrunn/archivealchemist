@@ -59,26 +59,25 @@ class TarHandler(BaseArchiveHandler):
     def add(self, args):
         """Add a file or symlink to the TAR archive."""
         # Create archive or open existing
-        if os.path.exists(args.file) and not self.compressed:
-            # We can append to uncompressed tar files
-            archive = self._open_existing_archive(args.file, "a")
-            needs_rewrite = False
+        if os.path.exists(args.file):
+            # For compressed archives, we need to rewrite the entire archive
+            needs_rewrite = True
+            read_archive = self._open_existing_archive(args.file, "r")
+            temp_file = args.file + ".tmp"
+            write_archive = self._create_new_archive(temp_file)
         else:
-            if os.path.exists(args.file):
-                # For compressed archives, we need to rewrite the entire archive
-                needs_rewrite = True
-                read_archive = self._open_existing_archive(args.file, "r")
-                temp_file = args.file + ".tmp"
-                write_archive = self._create_new_archive(temp_file)
-            else:
-                # New archive
-                archive = self._create_new_archive(args.file)
-                needs_rewrite = False
+            # New archive
+            archive = self._create_new_archive(args.file)
+            needs_rewrite = False
         
         try:
             if needs_rewrite:
                 # Copy all existing entries
                 for entry in read_archive.getmembers():
+                    # --content-directory should replace entry if it already exists
+                    file_exists = args.path == entry.name
+                    if file_exists and getattr(args, 'content_directory', None) is not None:
+                        continue
                     if entry.isfile():
                         file_data = read_archive.extractfile(entry)
                         write_archive.addfile(entry, file_data)
@@ -188,7 +187,6 @@ class TarHandler(BaseArchiveHandler):
                         print(f"Added {args.path} with content from {args.content_file} to {args.file}")
                     else:
                         print(f"Added {args.path} to {args.file}")
-        
         finally:
             archive.close()
             if needs_rewrite:

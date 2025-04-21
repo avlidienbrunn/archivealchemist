@@ -71,6 +71,14 @@ You can always override automatic detection by explicitly specifying the `-t` fl
 ./archive-alchemist.py -f archive.tar -t tar add exploit.sh --content "#!/bin/sh\necho hacked" --mode 0755 --setuid
 ```
 
+#### Adding Directories
+
+```bash
+# Add a directory recursively, preserving the original file structure and permissions
+# This will replace existing entries in the archive and not actually "add" additional entries with the same name
+./archive-alchemist.py -f archive.zip add website/ --content-directory ./website
+```
+
 #### Replace Files
 
 ```bash
