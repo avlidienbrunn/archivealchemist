@@ -557,6 +557,56 @@ run_test "Directory - Extract added directory" \
    CONTENT2=\$(cat test_extract_dir/archive/subdir/file2.txt) && \
    [ \"\$CONTENT2\" = \"Subdir file\" ]"
 
+# Test for overriding file permissions with --mode
+run_test "Directory - Override file permissions with --mode" \
+  "rm -f test_override.tar && \
+   mkdir -p test_dir_override && \
+   echo 'Regular file' > test_dir_override/regular.txt && \
+   echo 'Will be executable' > test_dir_override/make_exec.txt && \
+   chmod 0644 test_dir_override/regular.txt && \
+   chmod 0644 test_dir_override/make_exec.txt && \
+   $ALCHEMIST -v -f test_override.tar -t tar add archive/ --content-directory test_dir_override --mode 0755" \
+  "tar -tvf test_override.tar | grep 'archive/regular.txt' | grep -q 'rwxr-xr-x' && \
+   tar -tvf test_override.tar | grep 'archive/make_exec.txt' | grep -q 'rwxr-xr-x'"
+
+# Test for preserving file permissions
+run_test "Directory - Preserve file permissions" \
+  "rm -f test_perms.tar && \
+   mkdir -p test_dir_perms && \
+   echo 'Regular file' > test_dir_perms/regular.txt && \
+   echo 'Executable file' > test_dir_perms/exec.sh && \
+   chmod 0644 test_dir_perms/regular.txt && \
+   chmod 0755 test_dir_perms/exec.sh && \
+   $ALCHEMIST -v -f test_perms.tar -t tar add archive/ --content-directory test_dir_perms" \
+  "tar -tvf test_perms.tar | grep 'archive/regular.txt' | grep -q 'rw-r--r--' && \
+   tar -tvf test_perms.tar | grep 'archive/exec.sh' | grep -q 'rwxr-xr-x'"
+
+# Test for preserving directory permissions
+run_test "Directory - Preserve directory permissions" \
+  "rm -f test_dirperms.tar && \
+   mkdir -p test_dir_dirperms/normal_dir test_dir_dirperms/special_dir && \
+   chmod 0755 test_dir_dirperms/normal_dir && \
+   chmod 0770 test_dir_dirperms/special_dir && \
+   $ALCHEMIST -v -f test_dirperms.tar -t tar add archive/ --content-directory test_dir_dirperms && \
+   echo 'TAR contents:' && \
+   tar -tvf test_dirperms.tar" \
+  "tar -tvf test_dirperms.tar | grep 'archive/normal_dir/' | grep -q -- 'rwxr-xr-x' && \
+   tar -tvf test_dirperms.tar | grep 'archive/special_dir/' | grep -q -- 'rwxrwx---'"
+
+# Test for preserving permissions in ZIP archives
+run_test "Directory - Preserve permissions in ZIP" \
+  "rm -f test_zip_perms.zip && \
+   mkdir -p test_dir_zip_perms && \
+   echo 'Regular file' > test_dir_zip_perms/regular.txt && \
+   echo 'Executable file' > test_dir_zip_perms/exec.sh && \
+   chmod 0644 test_dir_zip_perms/regular.txt && \
+   chmod 0755 test_dir_zip_perms/exec.sh && \
+   $ALCHEMIST -v -f test_zip_perms.zip add archive/ --content-directory test_dir_zip_perms && \
+   mkdir -p test_extract_zip_perms && \
+   unzip test_zip_perms.zip -d test_extract_zip_perms" \
+  "[ \$(stat -c '%a' test_extract_zip_perms/archive/regular.txt) = '644' ] && \
+   [ \$(stat -c '%a' test_extract_zip_perms/archive/exec.sh) = '755' ]"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

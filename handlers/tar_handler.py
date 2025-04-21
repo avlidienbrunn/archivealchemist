@@ -165,7 +165,7 @@ class TarHandler(BaseArchiveHandler):
                 tarinfo.mode = 0o744
                 
                 # Apply attributes if specified
-                if args.mode:
+                if args.mode is not None:
                     tarinfo.mode = args.mode
                 if args.uid is not None:
                     tarinfo.uid = args.uid

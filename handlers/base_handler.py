@@ -178,6 +178,21 @@ class BaseArchiveHandler(ABC):
             for i in range(1, len(parts)):
                 parent = '/'.join(parts[:i])
                 if parent and parent not in added_dirs:
+                    # Calculate the correct directory path relative to content_directory
+                    # For a parent directory in the archive path, we need to map to the content_directory
+                    parent_rel_path = '/'.join(parts[1:i]) if len(parts) > i else ''
+                    parent_fs_path = os.path.join(args.content_directory, parent_rel_path)
+                    
+                    if os.path.exists(parent_fs_path) and os.path.isdir(parent_fs_path):
+                        # Get the actual directory permissions
+                        dir_stat = os.stat(parent_fs_path)
+                        dir_mode = dir_stat.st_mode & 0o777  # Extract permission bits
+                        # Use args.mode if specified, otherwise use the directory's actual mode
+                        mode_to_use = args.mode if hasattr(args, 'mode') and args.mode is not None else dir_mode
+                    else:
+                        # Directory doesn't exist in source, use default or specified mode
+                        mode_to_use = args.mode if hasattr(args, 'mode') and args.mode is not None else 0o755
+                    
                     if args.verbose:
                         print(f"Adding directory {parent}/")
                     
@@ -190,7 +205,7 @@ class BaseArchiveHandler(ABC):
                         'content_directory': None,
                         'symlink': None,
                         'hardlink': None,
-                        'mode': args.mode if hasattr(args, 'mode') else None,
+                        'mode': mode_to_use,
                         'uid': args.uid if hasattr(args, 'uid') else None,
                         'gid': args.gid if hasattr(args, 'gid') else None,
                         'mtime': args.mtime if hasattr(args, 'mtime') else None,
@@ -204,20 +219,33 @@ class BaseArchiveHandler(ABC):
                     self.add(dir_args)
                     added_dirs.add(parent)
             
-            # Add the directory itself
+            # Add the directory itself - calculate correct relative path
+            dir_rel_path = '/'.join(parts[1:]) if len(parts) > 1 else ''
+            dir_fs_path = os.path.join(args.content_directory, dir_rel_path)
+            
+            if os.path.exists(dir_fs_path) and os.path.isdir(dir_fs_path):
+                # Get the actual directory permissions
+                dir_stat = os.stat(dir_fs_path)
+                dir_mode = dir_stat.st_mode & 0o777  # Extract permission bits
+                # Use args.mode if specified, otherwise use the directory's actual mode
+                mode_to_use = args.mode if hasattr(args, 'mode') and args.mode is not None else dir_mode
+            else:
+                # Directory doesn't exist in source, use default or specified mode
+                mode_to_use = args.mode if hasattr(args, 'mode') and args.mode is not None else 0o755
+            
             if args.verbose:
                 print(f"Adding directory {dir_path}/")
                 
             # Create directory entry
             dir_args = type('Args', (), {
                 'file': args.file,
-                'path': f"{dir_path}/".replace('//', '/'),
+                'path': f"{dir_path}/",
                 'content': b'',  # Empty content for directory
                 'content_file': None,
                 'content_directory': None,
                 'symlink': None,
                 'hardlink': None,
-                'mode': args.mode if hasattr(args, 'mode') else None,
+                'mode': mode_to_use,
                 'uid': args.uid if hasattr(args, 'uid') else None,
                 'gid': args.gid if hasattr(args, 'gid') else None,
                 'mtime': args.mtime if hasattr(args, 'mtime') else None,
@@ -319,8 +347,10 @@ class BaseArchiveHandler(ABC):
                     self.add(symlink_args)
                 else:
                     # Regular file
+                    file_stat = os.stat(file_path)
+                    file_mode = file_stat.st_mode & 0o777  # Extract permission bits
                     if args.verbose:
-                        print(f"Adding file {file_path} as {archive_path}")
+                        print(f"Adding file {file_path} as {archive_path} with mode {oct(file_mode)} {args.mode}")
                     
                     file_args = type('Args', (), {
                         'file': args.file,
@@ -330,7 +360,7 @@ class BaseArchiveHandler(ABC):
                         'content_directory': None,
                         'symlink': None,
                         'hardlink': None,
-                        'mode': args.mode if hasattr(args, 'mode') else None,
+                        'mode': args.mode if args.mode != None else file_mode,
                         'uid': args.uid if hasattr(args, 'uid') else None,
                         'gid': args.gid if hasattr(args, 'gid') else None,
                         'mtime': args.mtime if hasattr(args, 'mtime') else None,
