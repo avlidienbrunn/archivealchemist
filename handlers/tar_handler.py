@@ -202,70 +202,14 @@ class TarHandler(BaseArchiveHandler):
             print(f"Error: Archive {args.file} does not exist")
             return
         
-        # Get content from either --content or --content-file
-        try:
-            content = self.get_content(args)
-        except (ValueError, FileNotFoundError) as e:
-            print(f"Error: {e}")
-            return
-        
-        # If neither content nor content-file is specified, show an error
-        if not args.content and not args.content_file and getattr(args, 'require_content', True):
-            print("Error: Either --content or --content-file must be specified")
-            return
-        
-        # For TAR, we need to extract, modify, and rewrite the archive
-        # Open the existing archive
-        read_mode = self._get_mode("r")
-        with tarfile.open(args.file, read_mode) as tar_in:
-            # Check if the file exists
-            member_names = [m.name for m in tar_in.getmembers()]
-            if args.path not in member_names:
-                print(f"Error: {args.path} not found in the archive")
-                return
-            
-            # Get the original member
-            orig_member = next(m for m in tar_in.getmembers() if m.name == args.path)
-            
-            # Get all other entries
-            entries = [entry for entry in tar_in.getmembers()
-                    if entry.name != args.path]
-            
-            # Create a new TAR file
-            write_mode = self._get_mode("w")
-            with tarfile.open(args.file + ".tmp", write_mode) as tar_out:
-                # Copy all the other entries
-                for entry in entries:
-                    if entry.isfile():
-                        file_data = tar_in.extractfile(entry)
-                        tar_out.addfile(entry, file_data)
-                    else:
-                        tar_out.addfile(entry)
-                
-                # Create a new tarinfo with the same attributes
-                tarinfo = tarfile.TarInfo(args.path)
-                tarinfo.size = len(content)
-                tarinfo.mode = orig_member.mode
-                tarinfo.type = orig_member.type
-                tarinfo.linkname = orig_member.linkname
-                tarinfo.uid = orig_member.uid
-                tarinfo.gid = orig_member.gid
-                tarinfo.uname = orig_member.uname
-                tarinfo.gname = orig_member.gname
-                tarinfo.mtime = orig_member.mtime
-                
-                # Add the replaced file with new content
-                tar_out.addfile(tarinfo, io.BytesIO(content))
-        
-        # Replace the original file
-        os.remove(args.file)
-        os.rename(args.file + ".tmp", args.file)
-        
+        self.remove(args)
+        self.add(args)
         if args.verbose:
             if args.content_file:
                 print(f"Replaced {args.path} with content from {args.content_file} in {args.file}")
             else:
                 print(f"Replaced {args.path} in {args.file}")
+        return
 
     # Update the append method in TarHandler
     def append(self, args):
@@ -447,7 +391,7 @@ class TarHandler(BaseArchiveHandler):
                 # Find all paths to remove (including directories)
                 paths_to_remove = []
                 for name in member_names:
-                    if name == args.path or name.startswith(args.path + "/"):
+                    if name == args.path or name.startswith(args.path.rstrip("/") + "/"):
                         paths_to_remove.append(name)
                 
                 if not paths_to_remove:

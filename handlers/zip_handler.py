@@ -138,48 +138,15 @@ class ZipHandler(BaseArchiveHandler):
         if not os.path.exists(args.file):
             print(f"Error: Archive {args.file} does not exist")
             return
-        
-        # Get content from either --content or --content-file
-        try:
-            content = self.get_content(args)
-        except (ValueError, FileNotFoundError) as e:
-            print(f"Error: {e}")
-            return
-        
-        # If neither content nor content-file is specified, show an error
-        if not args.content and not args.content_file and args.require_content:
-            print("Error: Either --content or --content-file must be specified")
-            return
-        
-        # For ZIP, we need to extract, modify, and rewrite the archive
-        with zipfile.ZipFile(args.file, "r") as zip_in:
-            # Check if the file exists
-            if args.path not in zip_in.namelist():
-                print(f"Error: {args.path} not found in the archive")
-                return
-            
-            # Get the list of entries, excluding the one we want to replace
-            entries = [entry for entry in zip_in.infolist() 
-                    if entry.filename != args.path]
-            
-            # Create a new ZIP file
-            with zipfile.ZipFile(args.file + ".tmp", "w") as zip_out:
-                # Copy all the other entries
-                for entry in entries:
-                    zip_out.writestr(entry, zip_in.read(entry.filename))
                 
-                # Add the replaced entry
-                zip_out.writestr(args.path, content)
-        
-        # Replace the original file
-        os.remove(args.file)
-        os.rename(args.file + ".tmp", args.file)
-        
+        self.remove(args)
+        self.add(args)
         if args.verbose:
             if args.content_file:
                 print(f"Replaced {args.path} with content from {args.content_file} in {args.file}")
             else:
                 print(f"Replaced {args.path} in {args.file}")
+        return
 
     def append(self, args):
         """Append content to a file in the ZIP archive."""
@@ -218,7 +185,14 @@ class ZipHandler(BaseArchiveHandler):
                 'content': new_content,
                 'content_file': None,
                 'verbose': args.verbose,
-                'require_content': False
+                'require_content': False,
+                'mode': args.mode if hasattr(args, 'mode') else None,
+                'mtime': args.mtime if hasattr(args, 'mtime') else None,
+                'symlink': args.symlink if hasattr(args, 'symlink') else None,
+                'hardlink': args.hardlink if hasattr(args, 'hardlink') else None,
+                'setuid': args.setuid if hasattr(args, 'setuid') else False,
+                'setgid': args.setgid if hasattr(args, 'setgid') else False,
+                'sticky': args.sticky if hasattr(args, 'sticky') else False
             })
             
             # Call replace with the new content
@@ -355,7 +329,7 @@ class ZipHandler(BaseArchiveHandler):
                 # Check if the path exists in the archive
                 paths_to_remove = []
                 for entry in entries:
-                    if entry.filename == args.path or entry.filename.startswith(args.path + "/"):
+                    if entry.filename == args.path or entry.filename.startswith(args.path.rstrip("/") + "/"):
                         paths_to_remove.append(entry.filename)
                 
                 if not paths_to_remove:

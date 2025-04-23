@@ -37,9 +37,11 @@ run_test() {
       TESTS_PASSED=$((TESTS_PASSED + 1))
     else
       echo -e "${RED}✗ Test failed: ${test_name} (verification failed)${NC}"
+      exit 1
     fi
   else
     echo -e "${RED}✗ Test failed: ${test_name} (command failed)${NC}"
+    exit 1
   fi
   
   echo ""
@@ -52,6 +54,7 @@ cleanup() {
   rm -rf test_extract
   rm -rf test_extract_*
   rm -rf test_dir_*
+  rm -rf test_replace_*
   rm -rf test_empty_dirs
   mkdir -p test_extract
 }
@@ -681,6 +684,104 @@ run_test "Directory - Overwrite in nested structure" \
    [ \"\$CONTENT2\" = \"Not changed\" ] && \
    CONTENT3=\$(unzip -p test_overwrite_nested.zip archive/dir3/file.txt) && \
    [ \"\$CONTENT3\" = \"New directory\" ]"
+
+# Test replace with --content
+run_test "Replace - With content" \
+  "rm -f test_replace_content.zip && \
+   $ALCHEMIST -v -f test_replace_content.zip add file.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_replace_content.zip replace file.txt --content 'Replaced content'" \
+  "unzip -p test_replace_content.zip file.txt | grep -q 'Replaced content' && \
+   ! (unzip -p test_replace_content.zip file.txt | grep -q 'Original content')"
+
+# Test replace with --content-file
+run_test "Replace - With content-file" \
+  "rm -f test_replace_content_file.zip && \
+   $ALCHEMIST -v -f test_replace_content_file.zip add file.txt --content 'Original content' && \
+   echo 'Replaced from file' > test_replace_source.txt && \
+   $ALCHEMIST -v -f test_replace_content_file.zip replace file.txt --content-file test_replace_source.txt" \
+  "unzip -p test_replace_content_file.zip file.txt | grep -q 'Replaced from file' && \
+   ! (unzip -p test_replace_content_file.zip file.txt | grep -q 'Original content')"
+
+# Test replace with --content-directory (single file)
+run_test "Replace - With content-directory (single file)" \
+  "rm -f test_replace_dir_single.zip && \
+   $ALCHEMIST -v -f test_replace_dir_single.zip add archive/file.txt --content 'Original content' && \
+   mkdir -p test_replace_dir_src && \
+   echo 'Replaced via directory' > test_replace_dir_src/file.txt && \
+   $ALCHEMIST -v -f test_replace_dir_single.zip replace archive/ --content-directory test_replace_dir_src" \
+  "unzip -p test_replace_dir_single.zip archive/file.txt | grep -q 'Replaced via directory'"
+
+# Test replace with --content-directory (multiple files)
+run_test "Replace - With content-directory (multiple files)" \
+  "rm -f test_replace_dir_multi.zip && \
+   $ALCHEMIST -v -f test_replace_dir_multi.zip add archive/file1.txt --content 'Original 1' && \
+   $ALCHEMIST -v -f test_replace_dir_multi.zip add archive/file2.txt --content 'Original 2' && \
+   $ALCHEMIST -v -f test_replace_dir_multi.zip add other/file.txt --content 'Not replaced' && \
+   mkdir -p test_replace_dir_multi_src && \
+   echo 'Replaced 1' > test_replace_dir_multi_src/file1.txt && \
+   echo 'Replaced 2' > test_replace_dir_multi_src/file2.txt && \
+   echo 'New file' > test_replace_dir_multi_src/file3.txt && \
+   $ALCHEMIST -v -f test_replace_dir_multi.zip replace archive/ --content-directory test_replace_dir_multi_src" \
+  "unzip -p test_replace_dir_multi.zip archive/file1.txt | grep -q 'Replaced 1' && \
+   unzip -p test_replace_dir_multi.zip archive/file2.txt | grep -q 'Replaced 2' && \
+   unzip -p test_replace_dir_multi.zip archive/file3.txt | grep -q 'New file' && \
+   unzip -p test_replace_dir_multi.zip other/file.txt | grep -q 'Not replaced'"
+
+# Test replace with symlink
+run_test "Replace - With symlink" \
+  "rm -f test_replace_symlink.tar && \
+   $ALCHEMIST -v -f test_replace_symlink.tar -t tar add file.txt --content 'Original content' && \
+   $ALCHEMIST -v -f test_replace_symlink.tar -t tar replace file.txt --symlink '/etc/passwd'" \
+  "tar -tvf test_replace_symlink.tar | grep -q 'file.txt -> /etc/passwd'"
+
+# Test replace with hardlink
+run_test "Replace - With hardlink" \
+  "rm -f test_replace_hardlink.tar && \
+   $ALCHEMIST -v -f test_replace_hardlink.tar -t tar add original.txt --content 'Target content' && \
+   $ALCHEMIST -v -f test_replace_hardlink.tar -t tar add link.txt --content 'Will be a hardlink' && \
+   $ALCHEMIST -v -f test_replace_hardlink.tar -t tar replace link.txt --hardlink 'original.txt'" \
+  "tar -tvf test_replace_hardlink.tar | grep -q 'link.txt link to original.txt'"
+
+# Test replace with modified attributes
+run_test "Replace - With modified attributes" \
+  "rm -f test_replace_attrs.tar && \
+   $ALCHEMIST -v -f test_replace_attrs.tar -t tar add file.txt --content 'Normal file' --mode 0644 && \
+   $ALCHEMIST -v -f test_replace_attrs.tar -t tar replace file.txt --content 'Executable file' --mode 0755 --setuid" \
+  "tar -tvf test_replace_attrs.tar | grep -q 'file.txt' && \
+   tar -tvf test_replace_attrs.tar | grep -q 'rws' && \
+   tar -xOf test_replace_attrs.tar file.txt | grep -q 'Executable file'"
+
+# Test replace in ZIP with modified attributes
+run_test "Replace - ZIP with modified attributes" \
+  "rm -f test_replace_zip_attrs.zip && \
+   $ALCHEMIST -v -f test_replace_zip_attrs.zip add file.txt --content 'Normal file' --mode 0644 && \
+   $ALCHEMIST -v -f test_replace_zip_attrs.zip replace file.txt --content 'Executable file' --mode 0755 && \
+   mkdir -p test_extract_replace_attrs && \
+   unzip test_replace_zip_attrs.zip -d test_extract_replace_attrs" \
+  "[ -f test_extract_replace_attrs/file.txt ] && \
+   [ \$(stat -c '%a' test_extract_replace_attrs/file.txt) = '755' ] && \
+   grep -q 'Executable file' test_extract_replace_attrs/file.txt"
+
+# Test replace directory (ensure old files are removed)
+run_test "Replace - Directory with complete replacement" \
+  "rm -f test_replace_dir_complete.zip && \
+   # First add a directory with some files
+   $ALCHEMIST -v -f test_replace_dir_complete.zip add archive/file1.txt --content 'Original file 1' && \
+   $ALCHEMIST -v -f test_replace_dir_complete.zip add archive/file2.txt --content 'Original file 2' && \
+   $ALCHEMIST -v -f test_replace_dir_complete.zip add archive/subdir/file3.txt --content 'Original file 3' && \
+   # Now create a new directory with different files
+   mkdir -p test_replace_dir_new/newdir && \
+   echo 'New content' > test_replace_dir_new/new_file.txt && \
+   echo 'New subdir file' > test_replace_dir_new/newdir/file.txt && \
+   # Replace the directory
+   $ALCHEMIST -v -f test_replace_dir_complete.zip replace archive/ --content-directory test_replace_dir_new" \
+  "# Verify new files exist
+   unzip -l test_replace_dir_complete.zip | grep -q 'archive/new_file.txt' && \
+   unzip -l test_replace_dir_complete.zip | grep -q 'archive/newdir/file.txt' && \
+   # Verify old files don't exist
+   ! (unzip -l test_replace_dir_complete.zip | grep -q 'archive/file1.txt') && \
+   ! (unzip -l test_replace_dir_complete.zip | grep -q 'archive/file2.txt') && \
+   ! (unzip -l test_replace_dir_complete.zip | grep -q 'archive/subdir/file3.txt')"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"

@@ -144,6 +144,16 @@ class ArchiveAlchemist:
         replace_parser.add_argument("--content-file", help="Path to a local file whose content should be used")
         replace_parser.add_argument("--require-content", action="store_true", default=True, 
                                 help=argparse.SUPPRESS)  # Hidden option to maintain backward compatibility
+        replace_parser.add_argument("--content-directory", help="Path to a local directory to add recursively")
+        replace_parser.add_argument("--symlink", help="Create a symlink to this target")
+        replace_parser.add_argument("--hardlink", help="Create a hardlink to this target")
+        replace_parser.add_argument("--mode", type=lambda x: int(x, 8), help="File mode (octal)")
+        replace_parser.add_argument("--uid", type=int, help="User ID")
+        replace_parser.add_argument("--gid", type=int, help="Group ID")
+        replace_parser.add_argument("--mtime", type=int, help="Modification time")
+        replace_parser.add_argument("--setuid", action="store_true", help="Set the setuid bit")
+        replace_parser.add_argument("--setgid", action="store_true", help="Set the setgid bit")
+        replace_parser.add_argument("--sticky", action="store_true", help="Set the sticky bit")
         
         # Append command
         append_parser = subparsers.add_parser("append", help="Append to files in the archive")
@@ -216,7 +226,11 @@ class ArchiveAlchemist:
             else:
                 handler.add(args)
         elif args.command == "replace":
-            handler.replace(args)
+            if getattr(args, 'content_directory', None):
+                handler.remove(args)
+                handler.add_directory(args)
+            else:
+                handler.replace(args)
         elif args.command == "append":
             handler.append(args)
         elif args.command == "modify":
