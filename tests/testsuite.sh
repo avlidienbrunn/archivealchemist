@@ -50,7 +50,7 @@ run_test() {
 # Clean up any existing test archives
 cleanup() {
   echo "Cleaning up test archives..."
-  rm -f test_*.zip test_*.tar test_*.tar.gz *.txt *.unknown *.tgz test_magic.*
+  rm -f test_*.zip test_*.tar test_*.tar.gz *.txt *.unknown *.tgz *.bz2 *.xz *.txz *.tbz2 test_magic.*
   rm -rf test_extract
   rm -rf test_extract_*
   rm -rf test_dir_*
@@ -813,6 +813,105 @@ run_test "Remove - Default recursive directory removal" \
    ! (unzip -l test_recursive_remove.zip | grep -q 'dir/') && \
    # Verify outside file still exists
    unzip -l test_recursive_remove.zip | grep -q 'outside.txt'"
+
+# Test for creating a basic tar.xz archive
+run_test "TAR.XZ - Add regular file" \
+  "rm -f test_regular.tar.xz && \
+   $ALCHEMIST -v -f test_regular.tar.xz -t tar.xz add hello.txt --content 'Hello, XZ compression!' && \
+   tar -tJf test_regular.tar.xz | grep -q 'hello.txt'" \
+  "tar -xJOf test_regular.tar.xz hello.txt | grep -q 'Hello, XZ compression!'"
+
+# Test for creating a basic tar.bz2 archive
+run_test "TAR.BZ2 - Add regular file" \
+  "rm -f test_regular.tar.bz2 && \
+   $ALCHEMIST -v -f test_regular.tar.bz2 -t tar.bz2 add hello.txt --content 'Hello, BZ2 compression!' && \
+   tar -tjf test_regular.tar.bz2 | grep -q 'hello.txt'" \
+  "tar -xjOf test_regular.tar.bz2 hello.txt | grep -q 'Hello, BZ2 compression!'"
+
+# Test format auto-detection from filename
+run_test "Format detection - tar.xz from filename" \
+  "rm -f test_detection.tar.xz && \
+   $ALCHEMIST -v -f test_detection.tar.xz add hello.txt --content 'Auto-detected XZ'" \
+  "tar -tJf test_detection.tar.xz | grep -q 'hello.txt' && \
+   tar -xJOf test_detection.tar.xz hello.txt | grep -q 'Auto-detected XZ'"
+
+# Test format auto-detection from filename
+run_test "Format detection - tar.bz2 from filename" \
+  "rm -f test_detection.tar.bz2 && \
+   $ALCHEMIST -v -f test_detection.tar.bz2 add hello.txt --content 'Auto-detected BZ2'" \
+  "tar -tjf test_detection.tar.bz2 | grep -q 'hello.txt' && \
+   tar -xjOf test_detection.tar.bz2 hello.txt | grep -q 'Auto-detected BZ2'"
+
+# Test for short filename variants (.txz, .tbz2)
+run_test "Format detection - .txz extension" \
+  "rm -f test_detection.txz && \
+   $ALCHEMIST -v -f test_detection.txz add hello.txt --content 'TXZ file'" \
+  "tar -tJf test_detection.txz | grep -q 'hello.txt' && \
+   tar -xJOf test_detection.txz hello.txt | grep -q 'TXZ file'"
+
+run_test "Format detection - .tbz2 extension" \
+  "rm -f test_detection.tbz2 && \
+   $ALCHEMIST -v -f test_detection.tbz2 add hello.txt --content 'TBZ2 file'" \
+  "tar -tjf test_detection.tbz2 | grep -q 'hello.txt' && \
+   tar -xjOf test_detection.tbz2 hello.txt | grep -q 'TBZ2 file'"
+
+# Test listing for tar.xz
+run_test "TAR.XZ - List contents" \
+  "rm -f test_list.tar.xz && \
+   $ALCHEMIST -v -f test_list.tar.xz -t tar.xz add file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_list.tar.xz -t tar.xz add file2.txt --content 'File 2'" \
+  "$ALCHEMIST -f test_list.tar.xz list | grep -q 'file1.txt' && \
+   $ALCHEMIST -f test_list.tar.xz list | grep -q 'file2.txt'"
+
+# Test listing for tar.bz2
+run_test "TAR.BZ2 - List contents" \
+  "rm -f test_list.tar.bz2 && \
+   $ALCHEMIST -v -f test_list.tar.bz2 -t tar.bz2 add file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_list.tar.bz2 -t tar.bz2 add file2.txt --content 'File 2'" \
+  "$ALCHEMIST -f test_list.tar.bz2 list | grep -q 'file1.txt' && \
+   $ALCHEMIST -f test_list.tar.bz2 list | grep -q 'file2.txt'"
+
+# Test extraction for tar.xz
+run_test "TAR.XZ - Extract files" \
+  "rm -f test_extract.tar.xz && \
+   rm -rf test_extract_xz && \
+   mkdir -p test_extract_xz && \
+   $ALCHEMIST -v -f test_extract.tar.xz -t tar.xz add file1.txt --content 'XZ File 1' && \
+   $ALCHEMIST -v -f test_extract.tar.xz -t tar.xz add file2.txt --content 'XZ File 2' && \
+   $ALCHEMIST -v -f test_extract.tar.xz extract --output-dir test_extract_xz" \
+  "[ -f test_extract_xz/file1.txt ] && \
+   [ -f test_extract_xz/file2.txt ] && \
+   grep -q 'XZ File 1' test_extract_xz/file1.txt && \
+   grep -q 'XZ File 2' test_extract_xz/file2.txt"
+
+# Test extraction for tar.bz2
+run_test "TAR.BZ2 - Extract files" \
+  "rm -f test_extract.tar.bz2 && \
+   rm -rf test_extract_bz2 && \
+   mkdir -p test_extract_bz2 && \
+   $ALCHEMIST -v -f test_extract.tar.bz2 -t tar.bz2 add file1.txt --content 'BZ2 File 1' && \
+   $ALCHEMIST -v -f test_extract.tar.bz2 -t tar.bz2 add file2.txt --content 'BZ2 File 2' && \
+   $ALCHEMIST -v -f test_extract.tar.bz2 extract --output-dir test_extract_bz2" \
+  "[ -f test_extract_bz2/file1.txt ] && \
+   [ -f test_extract_bz2/file2.txt ] && \
+   grep -q 'BZ2 File 1' test_extract_bz2/file1.txt && \
+   grep -q 'BZ2 File 2' test_extract_bz2/file2.txt"
+
+# Test magic bytes detection for tar.xz
+run_test "Magic bytes - tar.xz" \
+  "rm -f test_magic.tar.xz && \
+   $ALCHEMIST -v -f test_magic.tar.xz -t tar.xz add file.txt --content 'XZ Content' && \
+   cp test_magic.tar.xz test_magic.bin" \
+  "$ALCHEMIST -v -f test_magic.bin list 2>&1 | grep -q 'Auto-detected archive type: tar.xz' && \
+   tar -tJf test_magic.bin | grep -q 'file.txt'"
+
+# Test magic bytes detection for tar.bz2
+run_test "Magic bytes - tar.bz2" \
+  "rm -f test_magic.tar.bz2 && \
+   $ALCHEMIST -v -f test_magic.tar.bz2 -t tar.bz2 add file.txt --content 'BZ2 Content' && \
+   cp test_magic.tar.bz2 test_magic.dat" \
+  "$ALCHEMIST -v -f test_magic.dat list 2>&1 | grep -q 'Auto-detected archive type: tar.bz2' && \
+   tar -tjf test_magic.dat | grep -q 'file.txt'"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"

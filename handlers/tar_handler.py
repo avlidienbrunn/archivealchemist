@@ -18,7 +18,7 @@ class TarHandler(BaseArchiveHandler):
         """Initialize the TAR handler.
         
         Args:
-            compressed: Whether to use gzip compression.
+            compressed: Whether/how to use compression. Values: False, "gz", "xz", "bz2"
         """
         self.compressed = compressed
     
@@ -34,13 +34,13 @@ class TarHandler(BaseArchiveHandler):
         """
         if self.compressed:
             if operation == "r":
-                return "r:gz"
+                return f"r:{self.compressed}"
             elif operation == "w":
-                return "w:gz"
+                return f"w:{self.compressed}"
             elif operation == "a":
                 # Note: appending to compressed archives is problematic
                 # We'll need to rewrite the entire archive
-                return "w:gz"
+                return f"w:{self.compressed}"
         else:
             if binary and operation != "r":
                 return f"{operation}b"
