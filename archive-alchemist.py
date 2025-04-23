@@ -180,6 +180,7 @@ class ArchiveAlchemist:
         # Remove command
         remove_parser = subparsers.add_parser("remove", help="Remove files from the archive")
         remove_parser.add_argument("path", help="Path within the archive to remove")
+        remove_parser.add_argument("--recursive", "-r", type=int, default=1, help="Remove entries recursively (default 1/true)")
 
         # List command
         list_parser = subparsers.add_parser("list", help="List contents of the archive")

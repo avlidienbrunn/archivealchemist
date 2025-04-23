@@ -325,11 +325,14 @@ class ZipHandler(BaseArchiveHandler):
             with zipfile.ZipFile(args.file, "r") as zip_in:
                 # Get the list of entries
                 entries = zip_in.infolist()
+
+                # Recursive
+                is_recursive = bool(args.recursive) if hasattr(args, 'recursive') else True
                 
                 # Check if the path exists in the archive
                 paths_to_remove = []
                 for entry in entries:
-                    if entry.filename == args.path or entry.filename.startswith(args.path.rstrip("/") + "/"):
+                    if entry.filename == args.path or (is_recursive and entry.filename.startswith(args.path.rstrip("/") + "/")):
                         paths_to_remove.append(entry.filename)
                 
                 if not paths_to_remove:

@@ -783,6 +783,37 @@ run_test "Replace - Directory with complete replacement" \
    ! (unzip -l test_replace_dir_complete.zip | grep -q 'archive/file2.txt') && \
    ! (unzip -l test_replace_dir_complete.zip | grep -q 'archive/subdir/file3.txt')"
 
+# Test non-recursive remove with --recursive 0
+run_test "Remove - Non-recursive directory removal" \
+  "rm -f test_nonrecursive_remove.zip && \
+   # First add a directory with some files
+   $ALCHEMIST -v -f test_nonrecursive_remove.zip add dir/file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_nonrecursive_remove.zip add dir/file2.txt --content 'File 2' && \
+   $ALCHEMIST -v -f test_nonrecursive_remove.zip add dir/subdir/file3.txt --content 'File 3' && \
+   # Now remove just the directory entry but not its contents
+   $ALCHEMIST -v -f test_nonrecursive_remove.zip remove dir/ --recursive 0" \
+  "# Verify directory entry is removed
+   ! (unzip -l test_nonrecursive_remove.zip | grep -q 'dir/$') && \
+   # Verify files still exist
+   unzip -l test_nonrecursive_remove.zip | grep -q 'dir/file1.txt' && \
+   unzip -l test_nonrecursive_remove.zip | grep -q 'dir/file2.txt' && \
+   unzip -l test_nonrecursive_remove.zip | grep -q 'dir/subdir/file3.txt'"
+
+# Test recursive remove (default behavior)
+run_test "Remove - Default recursive directory removal" \
+  "rm -f test_recursive_remove.zip && \
+   # First add a directory with some files
+   $ALCHEMIST -v -f test_recursive_remove.zip add dir/file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_recursive_remove.zip add dir/file2.txt --content 'File 2' && \
+   $ALCHEMIST -v -f test_recursive_remove.zip add dir/subdir/file3.txt --content 'File 3' && \
+   $ALCHEMIST -v -f test_recursive_remove.zip add outside.txt --content 'Outside' && \
+   # Now remove the directory with default recursive behavior
+   $ALCHEMIST -v -f test_recursive_remove.zip remove dir/" \
+  "# Verify directory and contents are removed
+   ! (unzip -l test_recursive_remove.zip | grep -q 'dir/') && \
+   # Verify outside file still exists
+   unzip -l test_recursive_remove.zip | grep -q 'outside.txt'"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

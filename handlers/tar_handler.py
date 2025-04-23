@@ -388,10 +388,13 @@ class TarHandler(BaseArchiveHandler):
                 # Check if the path exists in the archive
                 member_names = [m.name for m in tar_in.getmembers()]
                 
+                # Recursive
+                is_recursive = bool(args.recursive) if hasattr(args, 'recursive') else True
+
                 # Find all paths to remove (including directories)
                 paths_to_remove = []
                 for name in member_names:
-                    if name == args.path or name.startswith(args.path.rstrip("/") + "/"):
+                    if name == args.path or (is_recursive and name.startswith(args.path.rstrip("/") + "/")):
                         paths_to_remove.append(name)
                 
                 if not paths_to_remove:
