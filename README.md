@@ -30,6 +30,41 @@ sudo ln -s $(pwd)/archive-alchemist.py /usr/local/bin/archive-alchemist
 
 See [Documentation](docs/index.md)
 
+
+### Tips
+
+#### Suggested working directory setup
+
+The most convenient way to test multiple payloads/tests for an archive is to use a local working directory and the `replace` command with `--content-directory` flag to "sync" the local directory to the archive:
+
+1. Extract into working directory: `./archive-alchemist.py -f target.zip extract -o workingdir/`
+2. Make changes to file(s) in `workingdir/`
+3. Build archive from working directory: `./archive-alchemist.py -f target_poc.zip add --content-directory workingdir/ ""`
+4. Test using `target_poc.zip`
+5. GOTO #2
+
+#### Blind detect symlink support
+
+If you know that the target service uses `bla/file.json`, you can:
+1. Extract into working directory: `./archive-alchemist.py -f target.zip extract -o workingdir/`
+2. Copy `workingdir/bla/file.json` to `workingdir/bla/file2.json`
+3. Build archive from working directory: `./archive-alchemist.py -f target_poc.zip add --content-directory workingdir/ ""`
+4. Change `bla/file.json` to a symlink to `bla/file2.json`: `./archive-alchemist.py -f target_poc.zip replace --symlink file2.json "bla/file.json"`
+5. Test using `target_poc.zip`. If it works normally, the target likely supports symlinks!
+
+#### Blind detect path traversal support
+
+If you know that the target service uses `bla/file.json`, you can:
+1. Extract into working directory: `./archive-alchemist.py -f target.zip extract -o workingdir/`
+2. Copy `workingdir/bla/file.json` to `workingdir/bla/blu/file.json`
+3. Build archive from working directory: `./archive-alchemist.py -f target_poc.zip add --content-directory workingdir/ ""`
+4. Add `bla/blu/../file.json` to the archive: `./archive-alchemist.py -f target_poc.zip add --content-file "workingdir/bla/blu/file.json" "bla/blu/../file.json"`
+5. Test using `target_poc.zip`. If it works normally, the target likely supports path traversal! (Although there might be additional checks to make sure that you dont traverse outside of the target directory)
+
+#### Blind detect absolute path support
+
+I havent really come up with a good generic way to test for this, but you could try changing `some/file.txt` to `/proc/self/cwd/some/file.txt`, and see if that works. Relying on proc filesystem and hoping that its cwd is the same as the extraction directory is not ideal, but its something.
+
 ### Examples for Security Testing
 
 #### Zip Slip Attack
