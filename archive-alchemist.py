@@ -97,9 +97,21 @@ class ArchiveAlchemist:
             return 'zip'
 
     def _create_parser(self):
+        asciiart = '''
+                _     _           
+               | |   (_)                 .---.          
+  __ _ _ __ ___| |__  ___   _____       _\\___/_ 
+ / _` | '__/ __| '_ \\| \\ \\ / / _ \\       )\\_/(
+| (_| | | | (__| | | | |\\ V /  __/      /     \\
+ \\__,_|_|  \\___|_| |_|_| \\_/ \\___|     /       \\             _      _                    _     _ 
+                                      /         \\           | |    | |                  (_)   | |  
+                                     /~~~~~~~~~~~\\      __ _| | ___| |__   ___ _ __ ___  _ ___| |_ 
+                                    /    tar   gz \\    / _` | |/ __| '_ \\ / _ \\ '_ ` _ \\| / __| __|
+                                   ( zip    bz2    )  | (_| | | (__| | | |  __/ | | | | | \\__ \\ |_
+                                    `-------------'    \\__,_|_|\\___|_| |_|\\___|_| |_| |_|_|___/\\__| '''
         """Create the command line argument parser."""
         parser = argparse.ArgumentParser(
-            description="Archive Alchemist - Create specially crafted archives for security testing.",
+            description=asciiart,
             formatter_class=argparse.RawDescriptionHelpFormatter
         )
         
