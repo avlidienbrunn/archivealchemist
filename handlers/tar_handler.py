@@ -146,6 +146,108 @@ class TarHandler(BaseArchiveHandler):
         
         return raw_fields
 
+    def _process_tar_blocks(self, fileobj):
+        """Process a tar file block by block, correctly handling GNU long names."""
+        # Initial state tracking
+        offset = 0
+        last_longname = None
+        
+        while True:
+            # Read a tar header block (512 bytes)
+            header_block = fileobj.read(512)
+            
+            # End of file or zero block
+            if not header_block or len(header_block) < 512 or all(b == 0 for b in header_block):
+                break
+            
+            # Parse the raw header
+            raw_fields = self._parse_raw_tar_header(header_block)
+            
+            # Check if this is a valid header
+            if not raw_fields or 'typeflag' not in raw_fields:
+                # Skip invalid blocks
+                offset += 512
+                continue
+            
+            # Get the size, rounded up to the next 512-byte boundary
+            size = raw_fields.get('size', 0)
+            blocks = (size + 511) // 512
+            
+            # Display the header info
+            name = raw_fields.get('name', '')
+            
+            # For GNU long names (type L), capture the long name from the data block
+            if raw_fields.get('typeflag') == 'L':
+                print(f"File: {name}")
+                print("-" * 70)
+                
+                # Print all raw header fields
+                for field, value in raw_fields.items():
+                    if field == 'magic':
+                        print(f"    {field:<15}: {value} (USTAR format: {'Yes' if value.startswith('ustar') else 'No'})")
+                    elif field == 'mtime':
+                        date_time = datetime.fromtimestamp(value)
+                        date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
+                        print(f"    {field:<15}: {value} ({date_str})")
+                    elif field == 'mode':
+                        perm_str = self.format_mode(value)
+                        print(f"    {field:<15}: {oct(value)} ({perm_str})")
+                    elif field == 'typeflag' and value:
+                        type_desc = self._get_type_code_description(bytes(value, 'utf-8'))
+                        print(f"    {field:<15}: {bytes(value, 'utf-8')} ({type_desc})")
+                    else:
+                        print(f"    {field:<15}: {value}")
+                
+                print("-" * 70)
+                
+                # Read the long name from the data block
+                long_name_data = fileobj.read(size)
+                last_longname = long_name_data.rstrip(b'\x00').decode('utf-8')
+                
+                # Skip any remaining padding to align to block boundary
+                padding_size = blocks * 512 - size
+                if padding_size > 0:
+                    fileobj.read(padding_size)
+            
+            # For normal files (potentially with a long name)
+            else:
+                # If we have a saved long name, use it and clear it
+                if last_longname:
+                    file_name = last_longname
+                    print(f"File: {file_name}")
+                    print(f"  (Actual file entry for previous GNU long name)")
+                    last_longname = None
+                else:
+                    file_name = name
+                    print(f"File: {file_name}")
+                
+                print("-" * 70)
+                
+                # Print all raw header fields
+                for field, value in raw_fields.items():
+                    if field == 'magic':
+                        print(f"    {field:<15}: {value} (USTAR format: {'Yes' if value.startswith('ustar') else 'No'})")
+                    elif field == 'mtime':
+                        date_time = datetime.fromtimestamp(value)
+                        date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
+                        print(f"    {field:<15}: {value} ({date_str})")
+                    elif field == 'mode':
+                        perm_str = self.format_mode(value)
+                        print(f"    {field:<15}: {oct(value)} ({perm_str})")
+                    elif field == 'typeflag' and value:
+                        type_desc = self._get_type_code_description(bytes(value, 'utf-8'))
+                        print(f"    {field:<15}: {bytes(value, 'utf-8')} ({type_desc})")
+                    else:
+                        print(f"    {field:<15}: {value}")
+                
+                print("-" * 70)
+                
+                # Skip the file data to get to the next header
+                fileobj.read(blocks * 512)
+            
+            # Update the offset
+            offset += 512 + (blocks * 512)
+
     def add(self, args):
         """Add a file or symlink to the TAR archive."""
         # Create archive or open existing
@@ -528,90 +630,65 @@ class TarHandler(BaseArchiveHandler):
         
         try:
             read_mode = self._get_mode("r")
-            with tarfile.open(args.file, read_mode) as tar_file:
-                members = tar_file.getmembers()
+            
+            # Standard listing (non-longlong mode)
+            if not (hasattr(args, 'longlong') and args.longlong or args.long == 2):
+                with tarfile.open(args.file, read_mode) as tar_file:
+                    members = tar_file.getmembers()
                                 
-                if not members:
-                    print(f"Archive {args.file} is empty")
-                    return
-                
-                # Very verbose listing with all header information
-                if hasattr(args, 'longlong') and args.longlong or args.long == 2:                    
-                    # Re-open the file to read the raw headers. Let tarfile lib handle compression stuff.
-                    raw_file = tarfile._Stream(name=None, mode='r', comptype=(self.compressed if self.compressed else 'tar'), fileobj=open(args.file, 'rb'), bufsize=tarfile.RECORDSIZE, compresslevel=9)
-                    for member in members:
-                        print(f"File: {member.name}")
-                        
-                        if hasattr(member, 'offset') and member.offset >= 0:
-                            # Seek to the header position
-                            raw_file.seek(member.offset)
-                            # Read 512 bytes (standard TAR header block size)
-                            raw_header = raw_file.read(512)
-                            
-                            # Parse and display the raw header fields
-                            print("-" * 70)
-                            raw_fields = self._parse_raw_tar_header(raw_header)
-                            for field, value in raw_fields.items():
-                                if field == 'magic':
-                                    print(f"    {field:<15}: {value} (USTAR format: {'Yes' if value.startswith('ustar') else 'No'})")
-                                elif field == 'mtime':
-                                    date_time = datetime.fromtimestamp(value)
-                                    date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
-                                    print(f"    {field:<15}: {value} ({date_str})")
-                                elif field == 'mode':
-                                    perm_str = self.format_mode(value)
-                                    print(f"    {field:<15}: {oct(value)} ({perm_str})")
-                                elif field == 'typeflag' and value:
-                                    type_desc = self._get_type_code_description(bytes(value, 'utf-8'))
-                                    print(f"    {field:<15}: {type_desc}")
-                                else:
-                                    print(f"    {field:<15}: {value}")
-                            
-                            # Show name construction if applicable
-                            if 'prefix' in raw_fields and raw_fields['prefix'] and 'name' in raw_fields:
-                                full_name = f"{raw_fields['prefix']}/{raw_fields['name']}"
-                                print(f"    {'full_name':<15}: {full_name} (constructed from prefix + name)")
-                        
-                        print(f"{'-'*70}")
-                elif args.long:
-                    print(f"{'Permissions':<12} {'Owner/Group':<15} {'Size':>10} {'Modified':>20} {'Name'}")
-                    print(f"{'-'*12} {'-'*15} {'-'*10} {'-'*20} {'-'*30}")
-                else:
-                    print(f"Contents of {args.file}:")
-                
-                # Sort members by name
-                members.sort(key=lambda m: m.name)
-                
-                # Print members
-                for member in members:
-                    # Skip directories for simple listing
-                    if not args.long and member.isdir():
-                        continue
+                    if not members:
+                        print(f"Archive {args.file} is empty")
+                        return
                     
                     if args.long:
-                        # Format date and time
-                        date_time = datetime.fromtimestamp(member.mtime)
-                        date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
-                        
-                        # Format permissions
-                        perm_str = self.format_mode(member.mode)
-                        
-                        # Format owner/group
-                        if member.uname and member.gname:
-                            owner_str = f"{member.uname}/{member.gname}"
-                        else:
-                            owner_str = f"{member.uid}/{member.gid}"
-                        
-                        # Handle symlinks
-                        name = member.name
-                        if member.issym():
-                            name = f"{member.name} -> {member.linkname}"
-                        elif member.islnk():
-                            name = f"{member.name} link to {member.linkname}"
-                        
-                        print(f"{perm_str} {owner_str:<15} {member.size:>10} {date_str:>20} {name}")
+                        print(f"{'Permissions':<12} {'Owner/Group':<15} {'Size':>10} {'Modified':>20} {'Name'}")
+                        print(f"{'-'*12} {'-'*15} {'-'*10} {'-'*20} {'-'*30}")
                     else:
-                        print(f"{member.name}")
+                        print(f"Contents of {args.file}:")
+                
+                    # Sort members by name
+                    members.sort(key=lambda m: m.name)
+                    
+                    # Print members
+                    for member in members:                        
+                        if args.long:
+                            # Format date and time
+                            date_time = datetime.fromtimestamp(member.mtime)
+                            date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
+                            
+                            # Format permissions
+                            perm_str = self.format_mode(member.mode)
+                            
+                            # Format owner/group
+                            if member.uname and member.gname:
+                                owner_str = f"{member.uname}/{member.gname}"
+                            else:
+                                owner_str = f"{member.uid}/{member.gid}"
+                            
+                            # Handle symlinks
+                            name = member.name
+                            if member.issym():
+                                name = f"{member.name} -> {member.linkname}"
+                            elif member.islnk():
+                                name = f"{member.name} link to {member.linkname}"
+                            
+                            print(f"{perm_str} {owner_str:<15} {member.size:>10} {date_str:>20} {name}")
+                        else:
+                            print(f"{member.name}{'/' if member.isdir() else ''}")
+            
+            # Very verbose --longlong listing with raw headers
+            else:
+                # Open the file and process it block by block, handling GNU long names correctly
+                stream = tarfile._Stream(
+                    name=None, 
+                    mode='r', 
+                    comptype=(self.compressed if self.compressed else 'tar'), 
+                    fileobj=open(args.file, 'rb'), 
+                    bufsize=tarfile.RECORDSIZE, 
+                    compresslevel=9
+                )
+                
+                self._process_tar_blocks(stream)
         
         except tarfile.ReadError:
             print(f"Error: {args.file} is not a valid TAR file")
@@ -775,10 +852,7 @@ class TarHandler(BaseArchiveHandler):
                                 if args.verbose:
                                     print(f"Created hardlink: {output_path} -> {target_path}")
                             except:
-                                # Fall back to copying
-                                shutil.copy2(target_path, output_path)
-                                if args.verbose:
-                                    print(f"Copied file (hardlink not supported): {output_path}")
+                                print(f"Warning: failed to hardlink (skipping): {output_path} -> {target_path}")
                         else:
                             print(f"Warning: Hardlink target not found: {target_path}")
                             # Create a placeholder file
