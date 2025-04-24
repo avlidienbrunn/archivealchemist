@@ -970,3 +970,95 @@ class ZipHandler(BaseArchiveHandler):
             print(f"Error: {args.file} is not a valid ZIP file")
         except Exception as e:
             print(f"Error extracting {args.file}: {e}")
+
+    def polyglot(self, args):
+        """Add content to the beginning of a ZIP file and adjust all offsets.
+        
+        This creates a polyglot file by prepending content to an existing ZIP file
+        and adjusting all offsets (central directory header offsets and end of
+        central directory record) to maintain ZIP file validity.
+        """
+        # Get content from either --content or --content-file
+        try:
+            content_bytes = self.get_content(args)
+        except (ValueError, FileNotFoundError) as e:
+            print(f"Error: {e}")
+            return
+
+        # If the file doesn't exist yet, create an empty ZIP file first
+        if not os.path.exists(args.file):
+            with zipfile.ZipFile(args.file, 'w') as zip_ref:
+                pass  # Create empty ZIP
+
+        # Read the existing ZIP file
+        with open(args.file, 'rb') as f:
+            zip_data = f.read()
+
+        # Calculate the adjustment value (length of content to prepend)
+        adjustment = len(content_bytes)
+
+        # Find the End of Central Directory (EOCD) record
+        eocd_offset = None
+        for i in range(len(zip_data) - 22, 0, -1):
+            if zip_data[i:i+4] == b'PK\x05\x06':
+                eocd_offset = i
+                break
+
+        if eocd_offset is None:
+            print("Error: Could not find End of Central Directory record")
+            return
+
+        # Extract central directory offset from EOCD
+        cd_offset = int.from_bytes(zip_data[eocd_offset+16:eocd_offset+20], byteorder='little')
+
+        # Create modified version with adjusted offsets
+        result = bytearray()
+        
+        # 1. Prepend the content
+        result.extend(content_bytes)
+        
+        # 2. Copy the ZIP data up to the Central Directory
+        result.extend(zip_data[:cd_offset])
+        
+        # 3. Process and adjust Central Directory
+        cd_data = zip_data[cd_offset:eocd_offset]
+        pos = 0
+        while pos < len(cd_data):
+            # Check for Central Directory Header signature
+            if cd_data[pos:pos+4] == b'PK\x01\x02':
+                # Get entry information
+                filename_len = int.from_bytes(cd_data[pos+28:pos+30], byteorder='little')
+                extra_len = int.from_bytes(cd_data[pos+30:pos+32], byteorder='little')
+                comment_len = int.from_bytes(cd_data[pos+32:pos+34], byteorder='little')
+                
+                # Get local header offset
+                old_offset = int.from_bytes(cd_data[pos+42:pos+46], byteorder='little')
+                
+                # Adjust local header offset
+                new_offset = old_offset + adjustment
+                
+                # Update offset in the CD entry
+                result.extend(cd_data[pos:pos+42])
+                result.extend(new_offset.to_bytes(4, byteorder='little'))
+                result.extend(cd_data[pos+46:pos+46+filename_len+extra_len+comment_len])
+                
+                # Move to next entry
+                pos += 46 + filename_len + extra_len + comment_len
+            else:
+                # Not a valid CD entry, just copy and advance
+                result.append(cd_data[pos])
+                pos += 1
+        
+        # 4. Adjust End of Central Directory record
+        new_cd_offset = cd_offset + adjustment
+        result.extend(zip_data[eocd_offset:eocd_offset+16])
+        result.extend(new_cd_offset.to_bytes(4, byteorder='little'))
+        result.extend(zip_data[eocd_offset+20:])
+        
+        # Write the modified ZIP file
+        with open(args.file, 'wb') as f:
+            f.write(result)
+        
+        if args.verbose:
+            print(f"Added {len(content_bytes)} bytes to the beginning of {args.file}")
+            print(f"Adjusted all ZIP offsets by {adjustment} bytes")

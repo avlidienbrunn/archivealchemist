@@ -11,7 +11,8 @@ Archive Alchemist is a security research tool for creating specially crafted arc
 - Ability to set special permission bits (setuid, setgid, sticky bit)
 - Fine-grained control over file attributes (mode, uid, gid, mtime)
 - Multiple manipulation commands: add, replace, append, modify
-- Multiple helper commands: extract, list
+- Multiple helper commands: extract, list, read
+- Create polyglot files (prepend archive with data + adjust headers)
 
 ## Installation
 
@@ -97,6 +98,14 @@ I havent really come up with a good generic way to test for this, but you could 
 ```bash
 # Create a setuid executable
 ./archive-alchemist.py -f setuid_attack.tar -t tar add exploit --content "#!/bin/sh\nwhoami" --mode 0755 --setuid --uid 0
+```
+
+#### Polyglot File
+
+```bash
+# Create a file that's a valid ZIP and starts with GIF magic bytes
+./archive-alchemist.py -f polyglot.gif add payload.txt --content "hello there"
+./archive-alchemist.py -f polyglot.gif polyglot --content "GIF89aI am totally a GIF file"
 ```
 
 ## Security Considerations

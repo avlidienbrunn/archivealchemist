@@ -1121,6 +1121,32 @@ run_test "Read - Directory entry TAR" \
    $ALCHEMIST -v -f test_read_dir.tar add dir/ --content-directory test_dir_for_read" \
   "$ALCHEMIST -f test_read_dir.tar read dir/ 2>&1 | grep -q 'is a directory'"
 
+run_test "Polyglot - ZIP prepend content" \
+  "$ALCHEMIST -v -f test_polyglot.zip add file.txt --content 'Original ZIP content' && \
+   $ALCHEMIST -v -f test_polyglot.zip polyglot --content 'PREPENDED'" \
+  "unzip -p test_polyglot.zip file.txt | grep -q 'Original ZIP content' && \
+   hexdump -C test_polyglot.zip | head -1 | grep -q 'PREPENDED'"
+
+run_test "Polyglot - TAR prepend content" \
+  "$ALCHEMIST -v -f test_polyglot.tar -t tar add file.txt --content 'Original TAR content' && \
+   $ALCHEMIST -v -f test_polyglot.tar -t tar polyglot --content 'PREPENDED'" \
+  "tar -xOf test_polyglot.tar file.txt | grep -q 'Original TAR content' && \
+   hexdump -C test_polyglot.tar | head -1 | grep -q 'PREPENDED'"
+
+run_test "Polyglot - ZIP prepend content from file" \
+  "echo 'PREPENDED_FROM_FILE' > test_prepend_content.txt && \
+   $ALCHEMIST -v -f test_polyglot_file.zip add file.txt --content 'Original ZIP content' && \
+   $ALCHEMIST -v -f test_polyglot_file.zip polyglot --content-file test_prepend_content.txt" \
+  "unzip -p test_polyglot_file.zip file.txt | grep -q 'Original ZIP content' && \
+   xxd -ps test_polyglot_file.zip | head -1 | grep -q '50524550454e4445445f46524f4d5f46494c45'"
+
+run_test "Polyglot - TAR prepend content from file" \
+  "echo 'PREPENDED_FROM_FILE' > test_prepend_content.txt && \
+   $ALCHEMIST -v -f test_polyglot_file.tar -t tar add file.txt --content 'Original TAR content' && \
+   $ALCHEMIST -v -f test_polyglot_file.tar -t tar polyglot --content-file test_prepend_content.txt" \
+  "tar -xOf test_polyglot_file.tar file.txt | grep -q 'Original TAR content' && \
+   xxd -ps test_polyglot_file.tar | head -1 | grep -q '50524550454e4445445f46524f4d5f46494c45'"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

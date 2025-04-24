@@ -388,7 +388,6 @@ class TarHandler(BaseArchiveHandler):
                 os.remove(args.file)
                 os.rename(temp_file, args.file)
 
-    # Update the replace method in TarHandler
     def replace(self, args):
         """Replace a file in the TAR archive."""
         if not os.path.exists(args.file):
@@ -404,7 +403,6 @@ class TarHandler(BaseArchiveHandler):
                 print(f"Replaced {args.path} in {args.file}")
         return
 
-    # Update the append method in TarHandler
     def append(self, args):
         """Append content to a file in the TAR archive."""
         if not os.path.exists(args.file):
@@ -919,3 +917,42 @@ class TarHandler(BaseArchiveHandler):
             print(f"Error: {args.file} is not a valid TAR file")
         except Exception as e:
             print(f"Error extracting {args.file}: {e}")
+
+    def polyglot(self, args):
+        """Add content to the beginning of a TAR file.
+        
+        For TAR files, this adds content and pads with nulls to ensure proper 512-byte block alignment.
+        """
+        # Get content from either --content or --content-file
+        try:
+            content_bytes = self.get_content(args)
+        except (ValueError, FileNotFoundError) as e:
+            print(f"Error: {e}")
+            return
+        
+        # If the file doesn't exist yet, create an empty TAR file first
+        if not os.path.exists(args.file):
+            tar_mode = self._get_mode("w")
+            with tarfile.open(args.file, tar_mode) as tar:
+                pass  # Create empty TAR
+        
+        # Read the existing TAR file
+        with open(args.file, 'rb') as f:
+            tar_data = f.read()
+        
+        # Calculate padding needed to align to 512-byte blocks
+        content_length = len(content_bytes)
+        padding_length = (512 - (content_length % 512)) % 512  # Ensure we're a multiple of 512
+        
+        # Create padded content
+        padded_content = bytearray(content_bytes)
+        padded_content.extend(b'\0' * padding_length)
+        
+        # Write the content followed by the TAR data
+        with open(args.file, 'wb') as f:
+            f.write(padded_content)
+            f.write(tar_data)
+        
+        if args.verbose:
+            print(f"Added {len(content_bytes)} bytes to the beginning of {args.file}")
+            print(f"Added {padding_length} bytes of padding to maintain TAR block alignment")

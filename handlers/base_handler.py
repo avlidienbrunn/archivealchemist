@@ -44,6 +44,16 @@ class BaseArchiveHandler(ABC):
         """Extract files from the archive."""
         pass
 
+    @abstractmethod
+    def read(self, args):
+        """Reads a file from the archive."""
+        pass
+
+    @abstractmethod
+    def polyglot(self, args):
+        """Create a polyglot file by prepending content."""
+        pass
+
     def _sanitize_path(self, path, output_dir):
         """Sanitize a path to prevent path traversal attacks.
         

@@ -5,3 +5,4 @@
 * StartFirst vs EndFirst vs Stream
 * credits section
 * example bugs from irl?
+* zip64 support

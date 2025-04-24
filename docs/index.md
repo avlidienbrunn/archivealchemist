@@ -14,6 +14,7 @@ Welcome to the Archive Alchemist documentation. This tool allows security resear
 | [list](list.md) | Display the contents of an archive |
 | [extract](extract.md) | Extract files from an archive to the filesystem |
 | [read](read.md) | Read file from an archive to stdout |
+| [polyglot](polyglot.md) | Prepend content to an archive while maintaining its validity |
 
 ## Additional Documentation
 

@@ -209,6 +209,11 @@ class ArchiveAlchemist:
         read_parser.add_argument("path", help="Path within the archive")
         read_parser.add_argument("--index", "-i", type=int, default=0, help="Index to read (in case there are several entries with the same name), default=0.")
         
+        # Polyglot command
+        polyglot_parser = subparsers.add_parser("polyglot", help="Create a polyglot file by prepending content to an archive")
+        polyglot_parser.add_argument("--content", help="Content to prepend to the file")
+        polyglot_parser.add_argument("--content-file", help="Path to a local file whose content should be prepended")
+
         return parser
     
     def _get_handler(self, args):
@@ -260,6 +265,8 @@ class ArchiveAlchemist:
             handler.extract(args)
         elif args.command == "read":
             handler.read(args)
+        elif args.command == "polyglot":
+            handler.polyglot(args)
         else:
             print(f"Error: Unknown command {args.command}")
 
