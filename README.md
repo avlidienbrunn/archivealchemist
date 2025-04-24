@@ -1,6 +1,6 @@
 # Archive Alchemist
 
-Archive Alchemist is a security research tool for creating specially crafted archives to test extraction vulnerabilities.
+Archive Alchemist is a tool for creating specially crafted archives to test extraction vulnerabilities.
 ![](art.png)
 <!-- ASCII art by jgs from https://ascii.co.uk/art/science -->
 
