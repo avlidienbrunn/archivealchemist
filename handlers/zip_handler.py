@@ -286,6 +286,26 @@ class ZipHandler(BaseArchiveHandler):
             else:
                 print(f"    {field:<20}: {value}")
 
+    def _get_symlink_target(self, zip_file, entry):
+        """Get the symlink target for a specific ZipInfo entry."""
+        # Check if it's a symlink
+        is_symlink = (entry.external_attr >> 16) & 0o170000 == 0o120000
+        if not is_symlink:
+            return None
+        
+        with zip_file.fp as fp:
+            # Skip to the file data
+            filename_length = len(entry.filename)
+            extra_field_length = len(entry.extra)
+            data_start = entry.header_offset + 30 + filename_length + extra_field_length
+                        
+            # Seek to data and read it
+            fp.seek(data_start)
+            target = fp.read(entry.file_size).decode('utf-8')
+            fp.close()
+            
+            return target
+
     def add(self, args):
         """Add a file or symlink to the ZIP archive."""
         # Create archive or open existing
@@ -810,9 +830,9 @@ class ZipHandler(BaseArchiveHandler):
                         # If it's a symlink, try to get target
                         if is_symlink:
                             try:
-                                target = zip_file.read(entry.filename).decode('utf-8')
+                                target = self._get_symlink_target(zipfile.ZipFile(args.file, "r"), entry)
                                 name = f"{entry.filename} -> {target}"
-                            except:
+                            except Exception as e:
                                 pass
                         
                         print(f"{perm_str} {entry.file_size:>10} {date_str:>20} {name}")

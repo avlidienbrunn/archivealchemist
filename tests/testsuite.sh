@@ -1022,6 +1022,20 @@ run_test "ZIP - List duplicate filenames with longlong" \
    echo \"First size: \$first_size, Second size: \$second_size\" && \
    [ \$first_size -eq 1 ] && [ \$second_size -eq 1 ]"
 
+# Test for duplicate symlinks in ZIP
+run_test "ZIP - List duplicate symlinks" \
+  "rm -f test_duplicate_symlinks.zip && \
+   $ALCHEMIST -v -f test_duplicate_symlinks.zip add link.txt --symlink '/tmp/1.txt' && \
+   $ALCHEMIST -v -f test_duplicate_symlinks.zip add link.txt --symlink '/tmp/2.txt' && \
+   $ALCHEMIST -v -f test_duplicate_symlinks.zip add regular.txt --content 'Just a regular file' && \
+   $ALCHEMIST -f test_duplicate_symlinks.zip list --longlong > duplicate_symlinks_output.txt" \
+  "duplicate_count=\$(grep -c 'File: link.txt' duplicate_symlinks_output.txt) && \
+   [ \"\$duplicate_count\" -eq 2 ] && \
+   grep -q '/tmp/1.txt' duplicate_symlinks_output.txt && \
+   grep -q '/tmp/2.txt' duplicate_symlinks_output.txt && \
+   echo \"Found \$duplicate_count entries for link.txt and both target paths\""
+
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then
