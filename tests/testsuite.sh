@@ -36,6 +36,7 @@ run_test() {
       echo -e "${GREEN}✓ Test passed: ${test_name}${NC}"
       TESTS_PASSED=$((TESTS_PASSED + 1))
     else
+      echo -e "${YELLOW}$verification${NC}";
       echo -e "${RED}✗ Test failed: ${test_name} (verification failed)${NC}"
       exit 1
     fi
@@ -50,11 +51,12 @@ run_test() {
 # Clean up any existing test archives
 cleanup() {
   echo "Cleaning up test archives..."
-  rm -f test_*.zip test_*.tar test_*.tar.gz *.txt *.unknown *.tgz *.bz2 *.xz *.txz *.tbz2 test_magic.*
+  rm -f test_*.zip test_*.tar test_*.tar.gz *.txt *.unknown *.tgz *.bz2 *.xz *.txz *.tbz2 test_magic.* binary?source.bin
   rm -rf test_extract
   rm -rf test_extract_*
   rm -rf test_dir_*
   rm -rf test_replace_*
+  rm -rf test_read_*
   rm -rf test_empty_dirs
   mkdir -p test_extract
 }
@@ -1035,6 +1037,89 @@ run_test "ZIP - List duplicate symlinks" \
    grep -q '/tmp/2.txt' duplicate_symlinks_output.txt && \
    echo \"Found \$duplicate_count entries for link.txt and both target paths\""
 
+# Test reading a regular file from ZIP
+run_test "Read - Regular file from ZIP" \
+  "rm -f test_read_regular.zip && \
+   $ALCHEMIST -v -f test_read_regular.zip add file.txt --content 'Content of file.txt'" \
+  "$ALCHEMIST -f test_read_regular.zip read file.txt | grep -q 'Content of file.txt'"
+
+# Test reading a regular file from TAR
+run_test "Read - Regular file from TAR" \
+  "rm -f test_read_regular.tar && \
+   $ALCHEMIST -v -f test_read_regular.tar -t tar add file.txt --content 'TAR file content'" \
+  "$ALCHEMIST -f test_read_regular.tar -t tar read file.txt | grep -q 'TAR file content'"
+
+# Test reading a symlink target from TAR
+run_test "Read - Symlink target from TAR" \
+  "rm -f test_read_symlink.tar && \
+   $ALCHEMIST -v -f test_read_symlink.tar -t tar add link.txt --symlink '/etc/target.txt'" \
+  "$ALCHEMIST -f test_read_symlink.tar -t tar read link.txt | grep -q '/etc/target.txt'"
+
+# Test reading multiple entries with same name using different indices
+run_test "Read - Multiple entries by index from ZIP" \
+  "rm -f test_read_multi.zip && \
+   $ALCHEMIST -v -f test_read_multi.zip add duplicate.txt --content 'First entry content' && \
+   $ALCHEMIST -v -f test_read_multi.zip add duplicate.txt --content 'Second entry content' && \
+   $ALCHEMIST -v -f test_read_multi.zip add duplicate.txt --content 'Third entry content'" \
+  "first=\$($ALCHEMIST -f test_read_multi.zip read duplicate.txt --index 0) && \
+   second=\$($ALCHEMIST -f test_read_multi.zip read duplicate.txt --index 1) && \
+   third=\$($ALCHEMIST -f test_read_multi.zip read duplicate.txt --index 2) && \
+   [ \"\$first\" = \"First entry content\" ] && \
+   [ \"\$second\" = \"Second entry content\" ] && \
+   [ \"\$third\" = \"Third entry content\" ] && \
+   echo \"All entries read correctly with their respective indices\""
+
+# Test reading symlinks with same name but different targets
+run_test "Read - Multiple symlinks with same name" \
+  "rm -f test_read_multi_symlinks.zip && \
+   $ALCHEMIST -v -f test_read_multi_symlinks.zip add link.txt --symlink '/tmp/target1.txt' && \
+   $ALCHEMIST -v -f test_read_multi_symlinks.zip add link.txt --symlink '/tmp/target2.txt'" \
+  "first=\$($ALCHEMIST -f test_read_multi_symlinks.zip read link.txt --index 0) && \
+   second=\$($ALCHEMIST -f test_read_multi_symlinks.zip read link.txt --index 1) && \
+   [ \"\$first\" = \"/tmp/target1.txt\" ] && \
+   [ \"\$second\" = \"/tmp/target2.txt\" ] && \
+   echo \"Both symlink targets read correctly\""
+
+# Test reading a file from TAR.GZ
+run_test "Read - File from compressed TAR.GZ" \
+  "rm -f test_read_compressed.tar.gz && \
+   $ALCHEMIST -v -f test_read_compressed.tar.gz -t tar.gz add file.txt --content 'Compressed content'" \
+  "$ALCHEMIST -f test_read_compressed.tar.gz -t tar.gz read file.txt | grep -q 'Compressed content'"
+
+# Test reading a file with binary content
+run_test "Read - Binary content" \
+  "rm -f test_read_binary.zip && \
+   printf 'Binary data: \x00\x01\x02\x03\xFF' > binary_source.bin && \
+   $ALCHEMIST -v -f test_read_binary.zip add binary.dat --content-file binary_source.bin" \
+  "$ALCHEMIST -f test_read_binary.zip read binary.dat | xxd -p | grep -q '42696e6172792064617461.*00010203ff'"
+
+# Test reading an entry that doesn't exist
+run_test "Read - Non-existent entry" \
+  "rm -f test_read_nonexistent.zip && \
+   $ALCHEMIST -v -f test_read_nonexistent.zip add file.txt --content 'Some content'" \
+  "$ALCHEMIST -f test_read_nonexistent.zip read nonexistent.txt 2>&1 | grep -q 'could not find'"
+
+# Test reading with index out of bounds
+run_test "Read - Index out of bounds" \
+  "rm -f test_read_index_bounds.zip && \
+   $ALCHEMIST -v -f test_read_index_bounds.zip add file.txt --content 'Some content'" \
+  "$ALCHEMIST -f test_read_index_bounds.zip read file.txt --index 5 2>&1 | grep -q 'could not find file.txt, index 5 in archive'"
+
+# Test reading a directory entry
+run_test "Read - Directory entry ZIP" \
+  "rm -f test_read_dir.zip && \
+   mkdir -p test_dir_for_read/subdir && \
+   echo 'File content' > test_dir_for_read/file.txt && \
+   $ALCHEMIST -v -f test_read_dir.zip add dir/ --content-directory test_dir_for_read" \
+  "$ALCHEMIST -f test_read_dir.zip read dir/ 2>&1 | grep -q 'is a directory'"
+
+# Test reading a directory entry
+run_test "Read - Directory entry TAR" \
+  "rm -f test_read_dir.tar && \
+   mkdir -p test_dir_for_read/subdir && \
+   echo 'File content' > test_dir_for_read/file.txt && \
+   $ALCHEMIST -v -f test_read_dir.tar add dir/ --content-directory test_dir_for_read" \
+  "$ALCHEMIST -f test_read_dir.tar read dir/ 2>&1 | grep -q 'is a directory'"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"

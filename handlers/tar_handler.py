@@ -8,6 +8,7 @@ import os
 import tarfile
 from datetime import datetime
 from handlers.base_handler import BaseArchiveHandler
+import sys
 
 
 class TarHandler(BaseArchiveHandler):
@@ -694,6 +695,48 @@ class TarHandler(BaseArchiveHandler):
                 del args.longlong
                 self.list(args)
         
+        except tarfile.ReadError:
+            print(f"Error: {args.file} is not a valid TAR file")
+
+    def read(self, args):
+        """Read the contents of an entry."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        try:
+            read_mode = self._get_mode("r")
+            
+            with tarfile.open(args.file, read_mode) as tar_file:
+                members = tar_file.getmembers()
+                current_index = 0
+                found = False
+                            
+                if not members:
+                    print(f"Archive {args.file} is empty")
+                    return
+                
+                # Print members
+                for member in members:
+                    # Skip other entries
+                    if not member.name == args.path:
+                        continue
+                    # Skip other entries until requested index is reached
+                    if not args.index == current_index:
+                        current_index += 1
+                        continue
+                    found = True
+                    if member.type == tarfile.DIRTYPE or member.path.endswith('/'):
+                        print(f"Error: could not read {args.path}, it is a directory")
+                        break
+                    if len(member.linkname) > 0:
+                        sys.stdout.write(member.linkname)
+                    else:
+                        sys.stdout.buffer.write(tar_file.extractfile(member).read())
+                    sys.stdout.buffer.flush()
+        
+            if not found:
+                print(f"Error: could not find {args.path}, index {args.index} in archive")
         except tarfile.ReadError:
             print(f"Error: {args.file} is not a valid TAR file")
 

@@ -203,6 +203,11 @@ class ArchiveAlchemist:
         extract_parser.add_argument("--output-dir", "-o", default=".", help="Directory to extract files to (default: current directory)")
         extract_parser.add_argument("--vulnerable", action="store_true", help="Allow potentially unsafe extractions (absolute paths, path traversal, etc.)")
         extract_parser.add_argument("--normalize-permissions", action="store_true", help="Normalize file permissions during extraction (don't preserve original permissions)")
+
+        # Read command
+        read_parser = subparsers.add_parser("read", help="Extract files from the archive")
+        read_parser.add_argument("path", help="Path within the archive")
+        read_parser.add_argument("--index", "-i", type=int, default=0, help="Index to read (in case there are several entries with the same name), default=0.")
         
         return parser
     
@@ -253,6 +258,8 @@ class ArchiveAlchemist:
             handler.list(args)
         elif args.command == "extract":
             handler.extract(args)
+        elif args.command == "read":
+            handler.read(args)
         else:
             print(f"Error: Unknown command {args.command}")
 

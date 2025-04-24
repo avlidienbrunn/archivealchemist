@@ -13,6 +13,7 @@ Welcome to the Archive Alchemist documentation. This tool allows security resear
 | [remove](remove.md) | Delete files, directories, symlinks, or hardlinks from an archive |
 | [list](list.md) | Display the contents of an archive |
 | [extract](extract.md) | Extract files from an archive to the filesystem |
+| [read](read.md) | Read file from an archive to stdout |
 
 ## Additional Documentation
 

@@ -8,6 +8,7 @@ import zipfile
 from datetime import datetime
 from handlers.base_handler import BaseArchiveHandler
 import warnings
+import sys
 
 warnings.filterwarnings("ignore", category=UserWarning, module="zipfile", message="Duplicate name:.*")
 
@@ -637,9 +638,6 @@ class ZipHandler(BaseArchiveHandler):
             with zipfile.ZipFile(args.file, "r") as zip_file:
                 entries = zip_file.infolist()
                 
-                # Sort entries by name
-                entries.sort(key=lambda e: e.filename)
-                
                 if not entries:
                     print(f"Archive {args.file} is empty")
                     return
@@ -818,6 +816,44 @@ class ZipHandler(BaseArchiveHandler):
                         print(f"{perm_str} {entry.file_size:>10} {date_str:>20} {name}")
                     else:
                         print(f"{entry.filename}")
+        
+        except zipfile.BadZipFile:
+            print(f"Error: {args.file} is not a valid ZIP file")
+
+    def read(self, args):
+        """Read the contents of an entry."""
+        if not os.path.exists(args.file):
+            print(f"Error: Archive {args.file} does not exist")
+            return
+        
+        try:
+            with zipfile.ZipFile(args.file, "r") as zip_file:
+                entries = zip_file.infolist()
+                current_index = 0
+                found = False
+                
+                if not entries:
+                    print(f"Archive {args.file} is empty")
+                    return
+                
+                for entry in entries:
+                    # Skip other entries
+                    if not entry.filename == args.path:
+                        continue
+                    # Skip other entries until requested index is reached
+                    if not args.index == current_index:
+                        current_index += 1
+                        continue
+                    
+                    found = True
+                    if entry.is_dir():
+                        print(f"Error: could not read {args.path}, it is a directory")
+                        break
+                    sys.stdout.buffer.write(zip_file.read(entry))
+                    sys.stdout.buffer.flush()
+                    break
+            if not found:
+                print(f"Error: could not find {args.path}, index {args.index} in archive")
         
         except zipfile.BadZipFile:
             print(f"Error: {args.file} is not a valid ZIP file")
