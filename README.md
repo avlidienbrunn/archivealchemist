@@ -1,6 +1,7 @@
 # Archive Alchemist
 
 Archive Alchemist is a security research tool for creating specially crafted archives to test extraction vulnerabilities.
+![](art.png)
 <!-- ASCII art by jgs from https://ascii.co.uk/art/science -->
 
 ## Features
@@ -107,7 +108,3 @@ I havent really come up with a good generic way to test for this, but you could 
 ./archive-alchemist.py -f polyglot.gif add payload.txt --content "hello there"
 ./archive-alchemist.py -f polyglot.gif polyglot --content "GIF89aI am totally a GIF file"
 ```
-
-## Security Considerations
-
-This tool is designed for security research and vulnerability testing. Using it against systems without explicit permission is illegal and unethical.
