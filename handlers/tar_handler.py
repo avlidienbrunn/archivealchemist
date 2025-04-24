@@ -689,6 +689,10 @@ class TarHandler(BaseArchiveHandler):
                 )
                 
                 self._process_tar_blocks(stream)
+                
+                # End with regular long/compact listing summary
+                del args.longlong
+                self.list(args)
         
         except tarfile.ReadError:
             print(f"Error: {args.file} is not a valid TAR file")

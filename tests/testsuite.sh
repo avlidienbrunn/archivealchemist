@@ -986,6 +986,22 @@ run_test "List - Shorthand option for longlong (ZIP)" \
    $ALCHEMIST -v -f test_ll_shorthand.zip add file.txt --content 'Testing shorthand option'" \
   "$ALCHEMIST -f test_ll_shorthand.zip list -ll | grep -q 'Local File Header'"
 
+# Test for GNU long name handling in TAR
+run_test "TAR - GNU long name handling" \
+  "rm -f test_longname.tar && \
+   # Create a file with a very long name (over 100 characters)
+   LONGNAME=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.txt\" && \
+   echo 'Content for file with long name' > \"\$LONGNAME\" && \
+   # Create tar file with this long name using tar command first
+   tar -cf test_longname.tar \"\$LONGNAME\" && \
+   # Verify with our tool
+   $ALCHEMIST -f test_longname.tar -t tar list --longlong > longname_list_output.txt" \
+  "# Check if our tool correctly identifies and shows the GNU long name
+   grep -q '@LongLink' longname_list_output.txt && \
+   grep -q 'typeflag.*GNU long name' longname_list_output.txt && \
+   # Check if the actual file entry is found and properly linked to the long name
+   grep -q \"$LONGNAME\" longname_list_output.txt && \
+   grep -q '(Actual file entry for previous GNU long name)' longname_list_output.txt"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
