@@ -517,7 +517,7 @@ class ZipHandler(BaseArchiveHandler):
             with zipfile.ZipFile(args.file + ".tmp", "w") as zip_out:
                 # Copy all the other entries
                 for entry in entries:
-                    zip_out.writestr(entry, zip_in.read(entry.filename))
+                    zip_out.writestr(entry, zip_in.read(entry))
                 
                 # Create new info
                 info = zipfile.ZipInfo(args.path)
@@ -629,7 +629,7 @@ class ZipHandler(BaseArchiveHandler):
                 with zipfile.ZipFile(args.file + ".tmp", "w") as zip_out:
                     # Copy all the other entries
                     for entry in entries_to_keep:
-                        zip_out.writestr(entry, zip_in.read(entry.filename))
+                        zip_out.writestr(entry, zip_in.read(entry))
             
             # Replace the original file
             os.remove(args.file)
@@ -890,7 +890,7 @@ class ZipHandler(BaseArchiveHandler):
                     if mode == 0o120000:  # Symlink
                         is_symlink = True
                         # Read the symlink target
-                        symlink_target = zip_file.read(entry.filename).decode('utf-8')
+                        symlink_target = zip_file.read(entry).decode('utf-8')
                         
                         # If not in vulnerable mode, create a regular file with the target as content
                         if not args.vulnerable:
@@ -933,7 +933,7 @@ class ZipHandler(BaseArchiveHandler):
                     elif not is_symlink:
                         # Extract the file
                         with open(output_path, 'wb') as f:
-                            f.write(zip_file.read(entry.filename))
+                            f.write(zip_file.read(entry))
                         if args.verbose:
                             print(f"Extracted: {output_path}")
                     
