@@ -1003,6 +1003,25 @@ run_test "TAR - GNU long name handling" \
    grep -q \"$LONGNAME\" longname_list_output.txt && \
    grep -q '(Actual file entry for previous GNU long name)' longname_list_output.txt"
 
+# Test for handling duplicate filenames in ZIP archives
+run_test "ZIP - List duplicate filenames with longlong" \
+  "rm -f test_duplicate_names.zip && \
+   # Simply call add twice with the same filename but different content
+   $ALCHEMIST -v -f test_duplicate_names.zip add duplicate.txt --content 'First entry with this name - smaller content' && \
+   $ALCHEMIST -v -f test_duplicate_names.zip add duplicate.txt --content 'Second entry with this name - this content is longer to have a different size' && \
+   $ALCHEMIST -v -f test_duplicate_names.zip add normal.txt --content 'Just a regular file'" \
+  "duplicate_count=\$($ALCHEMIST -f test_duplicate_names.zip list --longlong | grep -c 'File: duplicate.txt') && \
+   echo \"Found \$duplicate_count entries for duplicate.txt (expected 2)\" && \
+   [ \$duplicate_count -eq 2 ] && \
+   lfh_count=\$($ALCHEMIST -f test_duplicate_names.zip list --longlong | grep 'Local File Header' | uniq | grep -c 'Local File Header') && \
+   [ \$lfh_count -eq 3 ] && \
+   cdh_count=\$($ALCHEMIST -f test_duplicate_names.zip list --longlong | grep 'Central Directory Header' | uniq | grep -c 'Central Directory Header') && \
+   [ \$cdh_count -eq 3 ] && \
+   first_size=\$($ALCHEMIST -f test_duplicate_names.zip list --longlong | grep -c 'uncompressed_size.*MATCH - CDH: 44,') && \
+   second_size=\$($ALCHEMIST -f test_duplicate_names.zip list --longlong | grep -c 'uncompressed_size.*MATCH - CDH: 77,') && \
+   echo \"First size: \$first_size, Second size: \$second_size\" && \
+   [ \$first_size -eq 1 ] && [ \$second_size -eq 1 ]"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

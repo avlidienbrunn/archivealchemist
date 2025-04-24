@@ -7,7 +7,9 @@ import os
 import zipfile
 from datetime import datetime
 from handlers.base_handler import BaseArchiveHandler
+import warnings
 
+warnings.filterwarnings("ignore", category=UserWarning, module="zipfile", message="Duplicate name:.*")
 
 class ZipHandler(BaseArchiveHandler):
     """Handler for ZIP archives."""
@@ -720,13 +722,22 @@ class ZipHandler(BaseArchiveHandler):
                             print(f"\nFile: {entry.filename}")
                             print(f"{'-'*70}")
                             
-                            # Find matching CDH by filename
+                            # Find matching CDH by LFH offset
                             matching_cdh = None
                             for cdh in cd_headers:
-                                if cdh['fields'].get('filename') == entry.filename:
+                                if cdh['fields'].get('local_header_offset') == entry.header_offset:
                                     matching_cdh = cdh
                                     break
-                            
+                            # If failed (for some reason), try fallback via filename
+                            if matching_cdh == None:
+                                for cdh in cd_headers:
+                                    if cdh['fields'].get('filename') == entry.filename:
+                                        matching_cdh = cdh
+                                        break
+                            # Couldnt find CDH entry match by LFH offset or filename
+                            if matching_cdh == None:
+                                print(f"Warning: failed to find central directory header for {entry.filename}")
+
                             # Display LFH (using header_offset which points to LFH)
                             raw_file.seek(entry.header_offset)
                             if raw_file.read(4) == b'PK\x03\x04':  # Verify LFH signature
