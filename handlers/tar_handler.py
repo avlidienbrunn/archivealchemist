@@ -6,7 +6,6 @@ Implements the BaseArchiveHandler interface for TAR archives.
 import io
 import os
 import tarfile
-import tempfile
 from datetime import datetime
 from handlers.base_handler import BaseArchiveHandler
 
@@ -56,6 +55,97 @@ class TarHandler(BaseArchiveHandler):
         tar_mode = self._get_mode(mode)
         return tarfile.open(file_path, tar_mode)
     
+    def _get_type_code_description(self, type_code):
+        """Get a human-readable description of the type field value."""
+        if type_code == tarfile.REGTYPE or type_code == tarfile.AREGTYPE:
+            return f"{type_code} (regular file)"
+        elif type_code == tarfile.LNKTYPE:
+            return f"{type_code} (hard link)"
+        elif type_code == tarfile.SYMTYPE:
+            return f"{type_code} (symbolic link)"
+        elif type_code == tarfile.CHRTYPE:
+            return f"{type_code} (character device)"
+        elif type_code == tarfile.BLKTYPE:
+            return f"{type_code} (block device)"
+        elif type_code == tarfile.DIRTYPE:
+            return f"{type_code} (directory)"
+        elif type_code == tarfile.FIFOTYPE:
+            return f"{type_code} (fifo)"
+        elif type_code == tarfile.CONTTYPE:
+            return f"{type_code} (contiguous file)"
+        elif type_code == tarfile.GNUTYPE_SPARSE:
+            return f"{type_code} (GNU sparse file)"
+        elif type_code == tarfile.GNUTYPE_LONGNAME:
+            return f"{type_code} (GNU long name)"
+        elif type_code == tarfile.GNUTYPE_LONGLINK:
+            return f"{type_code} (GNU long link)"
+        else:
+            return f"{type_code} (unknown)"
+
+    def _parse_raw_tar_header(self, buf):
+        """Parse and return the raw TAR header fields from the buffer."""
+        # TODO: try to reuse python tarfile and make some hook/something to pull out the prefix header. TarInfo frombuf unfortunately
+        # combines internally and there is no way to get prefix out of it.
+        if not buf or len(buf) < 512:
+            return {}
+        
+        # TAR header block format (POSIX/USTAR)
+        header_fields = {
+            'name': (0, 100),       # File name
+            'mode': (100, 8),       # File mode
+            'uid': (108, 8),        # Owner's numeric user ID
+            'gid': (116, 8),        # Group's numeric user ID
+            'size': (124, 12),      # File size in bytes (octal)
+            'mtime': (136, 12),     # Last modification time (octal)
+            'chksum': (148, 8),     # Checksum for header block (octal)
+            'typeflag': (156, 1),   # Type of file
+            'linkname': (157, 100), # Name of linked file
+            # USTAR format specific fields
+            'magic': (257, 6),      # USTAR indicator "ustar\0"
+            'version': (263, 2),    # USTAR version "00"
+            'uname': (265, 32),     # Owner user name
+            'gname': (297, 32),     # Owner group name
+            'devmajor': (329, 8),   # Device major number
+            'devminor': (337, 8),   # Device minor number
+            'prefix': (345, 155),   # Filename prefix
+        }
+        
+        raw_fields = {}
+        
+        for field, (offset, length) in header_fields.items():
+            # Extract the raw bytes for this field
+            field_bytes = buf[offset:offset+length]
+            
+            # For string fields, convert to string and strip nulls
+            if field in ['name', 'linkname', 'magic', 'version', 'uname', 'gname', 'prefix']:
+                try:
+                    # Try UTF-8 first, fallback to other encodings if needed
+                    value = field_bytes.decode('utf-8').rstrip('\0')
+                except UnicodeDecodeError:
+                    try:
+                        # Try ISO-8859-1 as fallback
+                        value = field_bytes.decode('iso-8859-1').rstrip('\0')
+                    except:
+                        # Last resort: represent as hex
+                        value = f"HEX:{field_bytes.hex()}"
+            # For numeric fields, convert from octal string to integer
+            elif field in ['mode', 'uid', 'gid', 'size', 'mtime', 'chksum', 'devmajor', 'devminor']:
+                try:
+                    # Handle empty or invalid octal values
+                    field_str = field_bytes.decode('ascii').rstrip('\0 ')
+                    value = int(field_str, 8) if field_str else 0
+                except ValueError:
+                    value = f"INVALID:{field_bytes.hex()}"
+            # For typeflag, just get the single character
+            elif field == 'typeflag':
+                value = field_bytes.decode('ascii') if field_bytes else ''
+            else:
+                value = field_bytes
+            
+            raw_fields[field] = value
+        
+        return raw_fields
+
     def add(self, args):
         """Add a file or symlink to the TAR archive."""
         # Create archive or open existing
@@ -282,86 +372,84 @@ class TarHandler(BaseArchiveHandler):
             print("Error: Cannot specify both --symlink and --hardlink")
             return
 
-        # For TAR, we need to extract, modify, and rewrite the archive
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Open the existing archive
-            read_mode = self._get_mode("r")
-            with tarfile.open(args.file, read_mode) as tar_in:
-                # Check if the file exists
-                member_names = [m.name for m in tar_in.getmembers()]
-                if args.path not in member_names:
-                    print(f"Error: {args.path} not found in the archive")
-                    return
-                
-                # Get the original member
-                orig_member = next(m for m in tar_in.getmembers() if m.name == args.path)
-                
-                # Get all other entries
-                entries = [entry for entry in tar_in.getmembers() if entry.name != args.path]
-                
-                # Create a new TAR file
-                write_mode = self._get_mode("w")
-                with tarfile.open(args.file + ".tmp", write_mode) as tar_out:
-                    # Copy all the other entries
-                    for entry in entries:
-                        if entry.isfile():
-                            file_data = tar_in.extractfile(entry)
-                            tar_out.addfile(entry, file_data)
-                        else:
-                            tar_out.addfile(entry)
-                    
-                    # Create a new tarinfo based on the modification type
-                    tarinfo = tarfile.TarInfo(args.path)
-                    
-                    # Handle conversion to symlink
-                    if args.symlink:
-                        tarinfo.type = tarfile.SYMTYPE
-                        tarinfo.linkname = args.symlink
-                        tarinfo.size = 0  # Symlinks don't have content
-                        
-                        if args.verbose:
-                            print(f"Converting {args.path} to symlink -> {args.symlink}")
-                    
-                    # Handle conversion to hardlink
-                    elif args.hardlink:
-                        tarinfo.type = tarfile.LNKTYPE
-                        tarinfo.linkname = args.hardlink
-                        tarinfo.size = 0  # Hardlinks don't have content
-                        
-                        if args.verbose:
-                            print(f"Converting {args.path} to hardlink -> {args.hardlink}")
-                    
-                    # Normal attribute modification
+        # Open the existing archive
+        read_mode = self._get_mode("r")
+        with tarfile.open(args.file, read_mode) as tar_in:
+            # Check if the file exists
+            member_names = [m.name for m in tar_in.getmembers()]
+            if args.path not in member_names:
+                print(f"Error: {args.path} not found in the archive")
+                return
+            
+            # Get the original member
+            orig_member = next(m for m in tar_in.getmembers() if m.name == args.path)
+            
+            # Get all other entries
+            entries = [entry for entry in tar_in.getmembers() if entry.name != args.path]
+            
+            # Create a new TAR file
+            write_mode = self._get_mode("w")
+            with tarfile.open(args.file + ".tmp", write_mode) as tar_out:
+                # Copy all the other entries
+                for entry in entries:
+                    if entry.isfile():
+                        file_data = tar_in.extractfile(entry)
+                        tar_out.addfile(entry, file_data)
                     else:
-                        tarinfo.size = orig_member.size
-                        tarinfo.type = orig_member.type
-                        tarinfo.linkname = orig_member.linkname
-                        
-                        # Add the file data if it's a regular file
-                        if orig_member.isfile():
-                            file_data = tar_in.extractfile(orig_member)
+                        tar_out.addfile(entry)
+                
+                # Create a new tarinfo based on the modification type
+                tarinfo = tarfile.TarInfo(args.path)
+                
+                # Handle conversion to symlink
+                if args.symlink:
+                    tarinfo.type = tarfile.SYMTYPE
+                    tarinfo.linkname = args.symlink
+                    tarinfo.size = 0  # Symlinks don't have content
                     
-                    # Set common attributes
-                    tarinfo.uid = orig_member.uid if args.uid is None else args.uid
-                    tarinfo.gid = orig_member.gid if args.gid is None else args.gid
-                    tarinfo.uname = orig_member.uname
-                    tarinfo.gname = orig_member.gname
-                    tarinfo.mtime = orig_member.mtime if args.mtime is None else args.mtime
+                    if args.verbose:
+                        print(f"Converting {args.path} to symlink -> {args.symlink}")
+                
+                # Handle conversion to hardlink
+                elif args.hardlink:
+                    tarinfo.type = tarfile.LNKTYPE
+                    tarinfo.linkname = args.hardlink
+                    tarinfo.size = 0  # Hardlinks don't have content
                     
-                    # Set mode and special bits
-                    mode = orig_member.mode
-                    if args.mode is not None:
-                        mode = args.mode
+                    if args.verbose:
+                        print(f"Converting {args.path} to hardlink -> {args.hardlink}")
+                
+                # Normal attribute modification
+                else:
+                    tarinfo.size = orig_member.size
+                    tarinfo.type = orig_member.type
+                    tarinfo.linkname = orig_member.linkname
                     
-                    # Apply special bits if requested
-                    mode = self.apply_special_bits(mode, args)
-                    tarinfo.mode = mode
-                    
-                    # Add the modified file to the archive
-                    if not args.symlink and not args.hardlink and orig_member.isfile():
-                        tar_out.addfile(tarinfo, file_data)
-                    else:
-                        tar_out.addfile(tarinfo)
+                    # Add the file data if it's a regular file
+                    if orig_member.isfile():
+                        file_data = tar_in.extractfile(orig_member)
+                
+                # Set common attributes
+                tarinfo.uid = orig_member.uid if args.uid is None else args.uid
+                tarinfo.gid = orig_member.gid if args.gid is None else args.gid
+                tarinfo.uname = orig_member.uname
+                tarinfo.gname = orig_member.gname
+                tarinfo.mtime = orig_member.mtime if args.mtime is None else args.mtime
+                
+                # Set mode and special bits
+                mode = orig_member.mode
+                if args.mode is not None:
+                    mode = args.mode
+                
+                # Apply special bits if requested
+                mode = self.apply_special_bits(mode, args)
+                tarinfo.mode = mode
+                
+                # Add the modified file to the archive
+                if not args.symlink and not args.hardlink and orig_member.isfile():
+                    tar_out.addfile(tarinfo, file_data)
+                else:
+                    tar_out.addfile(tarinfo)
             
             # Replace the original file
             os.remove(args.file)
@@ -442,20 +530,57 @@ class TarHandler(BaseArchiveHandler):
             read_mode = self._get_mode("r")
             with tarfile.open(args.file, read_mode) as tar_file:
                 members = tar_file.getmembers()
-                
-                # Sort members by name
-                members.sort(key=lambda m: m.name)
-                
+                                
                 if not members:
                     print(f"Archive {args.file} is empty")
                     return
                 
-                # Print header
-                if args.long:
+                # Very verbose listing with all header information
+                if hasattr(args, 'longlong') and args.longlong or args.long == 2:                    
+                    # Re-open the file to read the raw headers. Let tarfile lib handle compression stuff.
+                    raw_file = tarfile._Stream(name=None, mode='r', comptype=(self.compressed if self.compressed else 'tar'), fileobj=open(args.file, 'rb'), bufsize=tarfile.RECORDSIZE, compresslevel=9)
+                    for member in members:
+                        print(f"File: {member.name}")
+                        
+                        if hasattr(member, 'offset') and member.offset >= 0:
+                            # Seek to the header position
+                            raw_file.seek(member.offset)
+                            # Read 512 bytes (standard TAR header block size)
+                            raw_header = raw_file.read(512)
+                            
+                            # Parse and display the raw header fields
+                            print("-" * 70)
+                            raw_fields = self._parse_raw_tar_header(raw_header)
+                            for field, value in raw_fields.items():
+                                if field == 'magic':
+                                    print(f"    {field:<15}: {value} (USTAR format: {'Yes' if value.startswith('ustar') else 'No'})")
+                                elif field == 'mtime':
+                                    date_time = datetime.fromtimestamp(value)
+                                    date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
+                                    print(f"    {field:<15}: {value} ({date_str})")
+                                elif field == 'mode':
+                                    perm_str = self.format_mode(value)
+                                    print(f"    {field:<15}: {oct(value)} ({perm_str})")
+                                elif field == 'typeflag' and value:
+                                    type_desc = self._get_type_code_description(bytes(value, 'utf-8'))
+                                    print(f"    {field:<15}: {type_desc}")
+                                else:
+                                    print(f"    {field:<15}: {value}")
+                            
+                            # Show name construction if applicable
+                            if 'prefix' in raw_fields and raw_fields['prefix'] and 'name' in raw_fields:
+                                full_name = f"{raw_fields['prefix']}/{raw_fields['name']}"
+                                print(f"    {'full_name':<15}: {full_name} (constructed from prefix + name)")
+                        
+                        print(f"{'-'*70}")
+                elif args.long:
                     print(f"{'Permissions':<12} {'Owner/Group':<15} {'Size':>10} {'Modified':>20} {'Name'}")
                     print(f"{'-'*12} {'-'*15} {'-'*10} {'-'*20} {'-'*30}")
                 else:
                     print(f"Contents of {args.file}:")
+                
+                # Sort members by name
+                members.sort(key=lambda m: m.name)
                 
                 # Print members
                 for member in members:

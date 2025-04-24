@@ -195,6 +195,7 @@ class ArchiveAlchemist:
         # List command
         list_parser = subparsers.add_parser("list", help="List contents of the archive")
         list_parser.add_argument("--long", "-l", type=int, default=1, help="Show detailed listing with file attributes")
+        list_parser.add_argument("--longlong", "-ll", action="store_true", help="Show very detailed listing with all header information")
 
         # Extract command
         extract_parser = subparsers.add_parser("extract", help="Extract files from the archive")

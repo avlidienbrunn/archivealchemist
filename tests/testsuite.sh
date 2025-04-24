@@ -913,6 +913,80 @@ run_test "Magic bytes - tar.bz2" \
   "$ALCHEMIST -v -f test_magic.dat list 2>&1 | grep -q 'Auto-detected archive type: tar.bz2' && \
    tar -tjf test_magic.dat | grep -q 'file.txt'"
 
+# Test for --longlong option on TAR archives
+run_test "List - Very verbose TAR listing (longlong)" \
+  "rm -f test_longlong.tar && \
+   $ALCHEMIST -v -f test_longlong.tar -t tar add file.txt --content 'Regular file' --mode 0644 && \
+   $ALCHEMIST -v -f test_longlong.tar -t tar add symlink.txt --symlink '/etc/passwd' && \
+   $ALCHEMIST -v -f test_longlong.tar -t tar add dir/nested.txt --content 'Nested content'" \
+  "$ALCHEMIST -f test_longlong.tar -t tar list --longlong | grep -q 'file.txt' && \
+   $ALCHEMIST -f test_longlong.tar -t tar list --longlong | grep -q 'linkname       : /etc/passwd' && \
+   $ALCHEMIST -f test_longlong.tar -t tar list --longlong | grep -q 'symlink.txt -> /etc/passwd' && \
+   $ALCHEMIST -f test_longlong.tar -t tar list --longlong | grep -q 'dir/nested.txt'"
+
+# Test for --longlong option on TAR.GZ archives
+run_test "List - Very verbose TAR.GZ listing (longlong)" \
+  "rm -f test_longlong.tar.gz && \
+   $ALCHEMIST -v -f test_longlong.tar.gz -t tar.gz add file.txt --content 'Compressed content' --mode 0644 && \
+   $ALCHEMIST -v -f test_longlong.tar.gz -t tar.gz add dir/nested.txt --content 'Nested in compressed archive'" \
+  "$ALCHEMIST -f test_longlong.tar.gz -t tar.gz list --longlong | grep -q 'file.txt' && \
+   $ALCHEMIST -f test_longlong.tar.gz -t tar.gz list --longlong | grep -q 'dir/nested.txt'"
+
+# Test for --longlong option on TAR.XZ archives
+run_test "List - Very verbose TAR.XZ listing (longlong)" \
+  "rm -f test_longlong.tar.xz && \
+   $ALCHEMIST -v -f test_longlong.tar.xz -t tar.xz add file.txt --content 'XZ compressed content' --mode 0644" \
+  "$ALCHEMIST -f test_longlong.tar.xz -t tar.xz list --longlong | grep -q 'file.txt'"
+
+# Test for --longlong option on TAR.BZ2 archives
+run_test "List - Very verbose TAR.BZ2 listing (longlong)" \
+  "rm -f test_longlong.tar.bz2 && \
+   $ALCHEMIST -v -f test_longlong.tar.bz2 -t tar.bz2 add file.txt --content 'BZ2 compressed content' --mode 0644" \
+  "$ALCHEMIST -f test_longlong.tar.bz2 -t tar.bz2 list --longlong | grep -q 'file.txt'"
+
+# Test for --longlong option on ZIP archives
+run_test "List - Very verbose ZIP listing (longlong)" \
+  "rm -f test_longlong.zip && \
+   $ALCHEMIST -v -f test_longlong.zip add file.txt --content 'ZIP content' --mode 0644 && \
+   $ALCHEMIST -v -f test_longlong.zip add symlink.txt --symlink '/etc/passwd' && \
+   $ALCHEMIST -v -f test_longlong.zip add dir/nested.txt --content 'Nested in ZIP'" \
+  "$ALCHEMIST -f test_longlong.zip list --longlong | grep -q 'file.txt' && \
+   $ALCHEMIST -f test_longlong.zip list --longlong | grep -q 'Local File Header' && \
+   $ALCHEMIST -f test_longlong.zip list --longlong | grep -q 'Central Directory Header' && \
+   $ALCHEMIST -f test_longlong.zip list --longlong | grep -q 'symlink.txt' && \
+   $ALCHEMIST -f test_longlong.zip list --longlong | grep -q 'dir/nested.txt'"
+
+# Test for special scenarios in TAR with longlong
+run_test "List - TAR with special elements (longlong)" \
+  "rm -f test_longlong_special.tar && \
+   $ALCHEMIST -v -f test_longlong_special.tar -t tar add file.txt --content 'Regular file' --mode 0644 --uid 1000 --gid 1000 && \
+   $ALCHEMIST -v -f test_longlong_special.tar -t tar add exec.sh --content '#!/bin/sh' --mode 0755 --setuid" \
+  "$ALCHEMIST -f test_longlong_special.tar -t tar list --longlong | grep -q 'uid.*1000' && \
+   $ALCHEMIST -f test_longlong_special.tar -t tar list --longlong | grep -q 'mode.*0.*rwsr'"
+
+# Test for special scenarios in ZIP with longlong
+run_test "List - ZIP with special elements (longlong)" \
+  "rm -f test_longlong_special.zip && \
+   $ALCHEMIST -v -f test_longlong_special.zip add file.txt --content 'Regular file' --mode 0644 && \
+   $ALCHEMIST -v -f test_longlong_special.zip add binary.dat --content 'Binary\x00Data\xFF' && \
+   $ALCHEMIST -v -f test_longlong_special.zip add exec.sh --content '#!/bin/sh' --mode 0755" \
+  "$ALCHEMIST -f test_longlong_special.zip list --longlong | grep -q 'external_file_attr.*0o644' && \
+   $ALCHEMIST -f test_longlong_special.zip list --longlong | grep -q 'compression_method.*stored (no compression)' && \
+   $ALCHEMIST -f test_longlong_special.zip list --longlong | grep -q 'Header Field Comparison'"
+
+# Test for --ll shorthand option on TAR
+run_test "List - Shorthand option for longlong (TAR)" \
+  "rm -f test_ll_shorthand.tar && \
+   $ALCHEMIST -v -f test_ll_shorthand.tar -t tar add file.txt --content 'Testing shorthand option'" \
+  "$ALCHEMIST -f test_ll_shorthand.tar -t tar list -ll | grep -q '(regular file)'"
+
+# Test for --ll shorthand option on ZIP
+run_test "List - Shorthand option for longlong (ZIP)" \
+  "rm -f test_ll_shorthand.zip && \
+   $ALCHEMIST -v -f test_ll_shorthand.zip add file.txt --content 'Testing shorthand option'" \
+  "$ALCHEMIST -f test_ll_shorthand.zip list -ll | grep -q 'Local File Header'"
+
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

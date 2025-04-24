@@ -75,23 +75,6 @@ class BaseArchiveHandler(ABC):
         # Join with the output directory
         return os.path.join(output_dir, safe_path)
 
-    def _is_safe_path(self, path, output_dir):
-        """Check if a path is safe to extract to.
-        
-        Args:
-            path: The path to check.
-            output_dir: The base output directory.
-            
-        Returns:
-            True if the path is safe, False otherwise.
-        """
-        # Normalize both paths for comparison
-        path = os.path.normpath(os.path.join(output_dir, path))
-        output_dir = os.path.normpath(output_dir)
-        
-        # The normalized path should start with the output directory
-        return os.path.commonprefix([path, output_dir]) == output_dir and '..' not in path
-
     def _create_parent_dirs(self, path):
         """Create parent directories for a path if they don't exist.
         
