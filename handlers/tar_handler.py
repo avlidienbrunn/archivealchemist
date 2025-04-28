@@ -678,13 +678,24 @@ class TarHandler(BaseArchiveHandler):
             # Very verbose --longlong listing with raw headers
             else:
                 # Open the file and process it block by block, handling GNU long names correctly
-                stream = tarfile._Stream(
-                    name=None, 
-                    mode='r', 
-                    comptype=(self.compressed if self.compressed else 'tar'), 
-                    fileobj=open(args.file, 'rb'), 
-                    bufsize=tarfile.RECORDSIZE
-                )
+                try:
+                    stream = tarfile._Stream(
+                        name=None, 
+                        mode='r', 
+                        comptype=(self.compressed if self.compressed else 'tar'), 
+                        fileobj=open(args.file, 'rb'), 
+                        bufsize=tarfile.RECORDSIZE,
+                        compresslevel=9
+                    )
+                except TypeError:
+                    # Hack to support older tarfile versions
+                    stream = tarfile._Stream(
+                        name=None, 
+                        mode='r', 
+                        comptype=(self.compressed if self.compressed else 'tar'), 
+                        fileobj=open(args.file, 'rb'), 
+                        bufsize=tarfile.RECORDSIZE,
+                    )
                 
                 self._process_tar_blocks(stream)
                 
