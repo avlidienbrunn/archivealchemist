@@ -7,7 +7,7 @@ The `polyglot` command prepends content to an archive while maintaining the arch
 ## Syntax
 
 ```bash
-./archive-alchemist.py -f <archive> [-t <type>] polyglot [options]
+./archive-alchemist.py <archive> [-t <type>] polyglot [options]
 ```
 
 ## Options
@@ -36,10 +36,10 @@ For TAR archives:
 
 ```bash
 # Prepend text content to a ZIP file
-./archive-alchemist.py -f archive.zip polyglot --content "PREPENDED_CONTENT"
+./archive-alchemist.py archive.zip polyglot --content "PREPENDED_CONTENT"
 
 # Prepend content from a file to a TAR archive
-./archive-alchemist.py -f archive.tar -t tar polyglot --content-file header.bin
+./archive-alchemist.py archive.tar -t tar polyglot --content-file header.bin
 ```
 
 ## Notes and Warnings

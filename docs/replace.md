@@ -7,7 +7,7 @@ The `replace` command replaces existing files or directories in an archive with 
 ## Syntax
 
 ```bash
-./archive-alchemist.py -f <archive> [-t <type>] replace <path> [options]
+./archive-alchemist.py <archive> [-t <type>] replace <path> [options]
 ```
 
 ## Options
@@ -36,24 +36,24 @@ The `replace` command replaces existing files or directories in an archive with 
 
 ```bash
 # Replace with inline content
-./archive-alchemist.py -f archive.zip replace config.json --content '{"version": "2.0", "updated": true}'
+./archive-alchemist.py archive.zip replace config.json --content '{"version": "2.0", "updated": true}'
 
 # Replace with content from another file
-./archive-alchemist.py -f archive.tar replace settings.conf --content-file /path/to/new/settings.conf
+./archive-alchemist.py archive.tar replace settings.conf --content-file /path/to/new/settings.conf
 ```
 
 ### Converting a Regular File to a Symlink
 
 ```bash
 # Convert a regular file to a symlink
-./archive-alchemist.py -f archive.tar -t tar replace hello.txt --symlink "/etc/motd"
+./archive-alchemist.py archive.tar -t tar replace hello.txt --symlink "/etc/motd"
 ```
 
 ### Converting a Regular File to a Hardlink (TAR only)
 
 ```bash
 # Convert a regular file to a hardlink
-./archive-alchemist.py -f archive.tar -t tar replace copy.txt --hardlink "original.txt"
+./archive-alchemist.py archive.tar -t tar replace copy.txt --hardlink "original.txt"
 ```
 
 **Note**: ZIP format doesn't support true hardlinks. When replacing with a hardlink in a ZIP file, Archive Alchemist creates a regular file with the target path as its content.
@@ -62,20 +62,20 @@ The `replace` command replaces existing files or directories in an archive with 
 
 ```bash
 # Replace a file and change its permissions
-./archive-alchemist.py -f archive.zip replace script.sh --content-file /path/to/new/script.sh --mode 0755
+./archive-alchemist.py archive.zip replace script.sh --content-file /path/to/new/script.sh --mode 0755
 
 # Replace a file and set the setuid bit
-./archive-alchemist.py -f archive.tar -t tar replace binary --content-file /path/to/exploit --mode 0755 --setuid --uid 0
+./archive-alchemist.py archive.tar -t tar replace binary --content-file /path/to/exploit --mode 0755 --setuid --uid 0
 ```
 
 ### Replacing an Entire Directory
 
 ```bash
 # Replace a directory with a local directory structure
-./archive-alchemist.py -f archive.zip replace website/ --content-directory /path/to/updated/website
+./archive-alchemist.py archive.zip replace website/ --content-directory /path/to/updated/website
 
 # Replace a directory and set custom permissions for all files
-./archive-alchemist.py -f archive.tar -t tar replace config/ --content-directory /path/to/new/config --mode 0600
+./archive-alchemist.py archive.tar -t tar replace config/ --content-directory /path/to/new/config --mode 0600
 ```
 
 When using `--content-directory`:
@@ -91,24 +91,24 @@ When using `--content-directory`:
 
 ```bash
 # Replace a configuration file with a malicious one
-./archive-alchemist.py -f target.zip replace config/settings.xml --content-file evil-settings.xml
+./archive-alchemist.py target.zip replace config/settings.xml --content-file evil-settings.xml
 
 # Convert a regular file to a symlink for a symlink attack
-./archive-alchemist.py -f package.tar -t tar replace .profile --symlink "/etc/shadow"
+./archive-alchemist.py package.tar -t tar replace .profile --symlink "/etc/shadow"
 ```
 
 ### Updating Timestamps
 
 ```bash
 # Replace a file and set a specific modification time (January 1, 2021)
-./archive-alchemist.py -f archive.zip replace log.txt --content "Event occurred" --mtime 1609459200
+./archive-alchemist.py archive.zip replace log.txt --content "Event occurred" --mtime 1609459200
 ```
 
 ### Replacing with Special Permission Bits
 
 ```bash
 # Replace with sticky bit directory
-./archive-alchemist.py -f archive.tar -t tar replace tmp/ --content-directory /path/to/new/tmp --mode 01777 --sticky
+./archive-alchemist.py archive.tar -t tar replace tmp/ --content-directory /path/to/new/tmp --mode 01777 --sticky
 ```
 
 ## Notes and Warnings

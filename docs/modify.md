@@ -7,7 +7,7 @@ The `modify` command changes file attributes or converts files to symlinks/hardl
 ## Syntax
 
 ```bash
-./archive-alchemist.py -f <archive> [-t <type>] modify <path> [options]
+./archive-alchemist.py <archive> [-t <type>] modify <path> [options]
 ```
 
 ## Options
@@ -33,57 +33,57 @@ The `modify` command changes file attributes or converts files to symlinks/hardl
 
 ```bash
 # Make a file executable
-./archive-alchemist.py -f archive.zip modify script.sh --mode 0755
+./archive-alchemist.py archive.zip modify script.sh --mode 0755
 
 # Remove write permissions
-./archive-alchemist.py -f archive.tar -t tar modify sensitive.conf --mode 0444
+./archive-alchemist.py archive.tar -t tar modify sensitive.conf --mode 0444
 ```
 
 ### Changing Ownership
 
 ```bash
 # Change ownership to root
-./archive-alchemist.py -f archive.tar -t tar modify system.conf --uid 0 --gid 0
+./archive-alchemist.py archive.tar -t tar modify system.conf --uid 0 --gid 0
 
 # Change only the group
-./archive-alchemist.py -f archive.tar -t tar modify shared.txt --gid 100
+./archive-alchemist.py archive.tar -t tar modify shared.txt --gid 100
 ```
 
 ### Setting Special Permission Bits
 
 ```bash
 # Set the setuid bit
-./archive-alchemist.py -f archive.tar -t tar modify bin/suid_exec --mode 0755 --setuid --uid 0
+./archive-alchemist.py archive.tar -t tar modify bin/suid_exec --mode 0755 --setuid --uid 0
 
 # Set the setgid bit
-./archive-alchemist.py -f archive.tar -t tar modify shared/data --mode 0775 --setgid --gid 50
+./archive-alchemist.py archive.tar -t tar modify shared/data --mode 0775 --setgid --gid 50
 
 # Set the sticky bit
-./archive-alchemist.py -f archive.tar -t tar modify tmp/ --mode 01777 --sticky
+./archive-alchemist.py archive.tar -t tar modify tmp/ --mode 01777 --sticky
 ```
 
 ### Modifying Timestamps
 
 ```bash
 # Set a specific modification time (January 1, 2021)
-./archive-alchemist.py -f archive.zip modify old_file.txt --mtime 1609459200
+./archive-alchemist.py archive.zip modify old_file.txt --mtime 1609459200
 ```
 
 ### Converting Files to Symlinks
 
 ```bash
 # Convert a regular file to a symlink
-./archive-alchemist.py -f archive.tar -t tar modify config.ini --symlink "/etc/app/config.ini"
+./archive-alchemist.py archive.tar -t tar modify config.ini --symlink "/etc/app/config.ini"
 
 # Convert a file to a relative symlink
-./archive-alchemist.py -f archive.zip modify link.txt --symlink "../target.txt"
+./archive-alchemist.py archive.zip modify link.txt --symlink "../target.txt"
 ```
 
 ### Converting Files to Hardlinks (TAR only)
 
 ```bash
 # Convert a file to a hardlink
-./archive-alchemist.py -f archive.tar -t tar modify copy.txt --hardlink "original.txt"
+./archive-alchemist.py archive.tar -t tar modify copy.txt --hardlink "original.txt"
 ```
 
 **Note**: ZIP format doesn't support true hardlinks. When converting to a hardlink in a ZIP file, Archive Alchemist creates a regular file with the target path as its content.
@@ -94,21 +94,21 @@ The `modify` command changes file attributes or converts files to symlinks/hardl
 
 ```bash
 # Create a setuid root executable for privilege escalation testing
-./archive-alchemist.py -f test.tar -t tar modify bin/exploit --mode 04755 --setuid --uid 0
+./archive-alchemist.py test.tar -t tar modify bin/exploit --mode 04755 --setuid --uid 0
 ```
 
 ### Backdooring an Archive
 
 ```bash
 # Convert a legitimate config file to a symlink pointing to /etc/shadow
-./archive-alchemist.py -f package.tar -t tar modify .bashrc --symlink "/etc/shadow"
+./archive-alchemist.py package.tar -t tar modify .bashrc --symlink "/etc/shadow"
 ```
 
 ### Manipulating Timestamps for Anti-Forensics
 
 ```bash
 # Set an older timestamp to hide recent modifications
-./archive-alchemist.py -f evidence.zip modify suspicious.log --mtime 1577836800  # Jan 1, 2020
+./archive-alchemist.py evidence.zip modify suspicious.log --mtime 1577836800  # Jan 1, 2020
 ```
 
 ## Notes and Warnings

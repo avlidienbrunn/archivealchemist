@@ -16,19 +16,19 @@ Archive Alchemist can automatically detect the archive format in three ways:
 
 1. **Explicit Type Flag**: Using the `-t` or `--type` option overrides any automatic detection.
    ```bash
-   ./archive-alchemist.py -f archive.dat -t tar list
+   ./archive-alchemist.py archive.dat -t tar list
    ```
 
 2. **Magic Bytes Detection**: For existing archives, the tool identifies the format by examining the file's content signature.
    ```bash
    # The tool will automatically detect this as a ZIP file regardless of extension
-   ./archive-alchemist.py -f mysterious_file list
+   ./archive-alchemist.py mysterious_file list
    ```
 
 3. **Extension-based Detection**: For new archives or when magic bytes detection fails, the tool uses the file extension.
    ```bash
    # Will create a new TAR archive based on extension
-   ./archive-alchemist.py -f new_archive.tar add file.txt --content "content"
+   ./archive-alchemist.py new_archive.tar add file.txt --content "content"
    ```
 
 For files with unrecognized extensions and no valid magic bytes, ZIP format is used by default.

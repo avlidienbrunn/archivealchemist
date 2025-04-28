@@ -7,7 +7,7 @@ The `remove` (or the alias, `rm`) command deletes files, directories, symlinks, 
 ## Syntax
 
 ```bash
-./archive-alchemist.py -f <archive> [-t <type>] remove <path> [options]
+./archive-alchemist.py <archive> [-t <type>] remove <path> [options]
 ```
 
 ## Options
@@ -23,27 +23,27 @@ The `remove` (or the alias, `rm`) command deletes files, directories, symlinks, 
 
 ```bash
 # Remove a file from a ZIP archive
-./archive-alchemist.py -f archive.zip remove file.txt
+./archive-alchemist.py archive.zip remove file.txt
 
 # Remove a file from a TAR archive
-./archive-alchemist.py -f archive.tar -t tar remove config/settings.conf
+./archive-alchemist.py archive.tar -t tar remove config/settings.conf
 ```
 
 ### Removing a Directory Recursively (Default)
 
 ```bash
 # Remove a directory and all its contents
-./archive-alchemist.py -f archive.zip remove config/
+./archive-alchemist.py archive.zip remove config/
 
 # This is equivalent to:
-./archive-alchemist.py -f archive.zip remove config/ --recursive 1
+./archive-alchemist.py archive.zip remove config/ --recursive 1
 ```
 
 ### Removing a Directory Non-recursively
 
 ```bash
 # Remove only the directory entry, not its contents
-./archive-alchemist.py -f archive.zip remove config/ --recursive 0
+./archive-alchemist.py archive.zip remove config/ --recursive 0
 ```
 
 With `--recursive 0`, only the exact path specified will be removed. If the path is a directory, only the directory entry itself is removed, while the files inside the directory remain in the archive.
@@ -52,10 +52,10 @@ With `--recursive 0`, only the exact path specified will be removed. If the path
 
 ```bash
 # Remove a symlink
-./archive-alchemist.py -f archive.tar -t tar remove link.txt
+./archive-alchemist.py archive.tar -t tar remove link.txt
 
 # Remove a hardlink
-./archive-alchemist.py -f archive.tar -t tar remove hardlink.txt
+./archive-alchemist.py archive.tar -t tar remove hardlink.txt
 ```
 
 ## Notes and Warnings

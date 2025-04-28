@@ -7,7 +7,7 @@ The `list` (or the alias, `ls`) command displays the contents of an archive, sho
 ## Syntax
 
 ```bash
-./archive-alchemist.py -f <archive> [-t <type>] list [options]
+./archive-alchemist.py <archive> [-t <type>] list [options]
 ```
 
 ## Options

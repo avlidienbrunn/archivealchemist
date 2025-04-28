@@ -7,7 +7,7 @@ The `extract` command extracts files from an archive to the filesystem. By defau
 ## Syntax
 
 ```bash
-./archive-alchemist.py -f <archive> [-t <type>] extract [options]
+./archive-alchemist.py <archive> [-t <type>] extract [options]
 ```
 
 ## Options
@@ -25,20 +25,20 @@ The `extract` command extracts files from an archive to the filesystem. By defau
 
 ```bash
 # Extract all files from an archive to the current directory
-./archive-alchemist.py -f archive.zip extract
+./archive-alchemist.py archive.zip extract
 
 # Extract to a specific directory
-./archive-alchemist.py -f archive.tar -t tar extract --output-dir /path/to/extract
+./archive-alchemist.py archive.tar -t tar extract --output-dir /path/to/extract
 ```
 
 ### Selective Extraction
 
 ```bash
 # Extract a specific file
-./archive-alchemist.py -f archive.zip extract --path file.txt
+./archive-alchemist.py archive.zip extract --path file.txt
 
 # Extract a specific directory and its contents
-./archive-alchemist.py -f archive.zip extract --path some/dir
+./archive-alchemist.py archive.zip extract --path some/dir
 ```
 
 ### Safe Mode Extraction (Default)
@@ -47,30 +47,30 @@ The default safe mode provides the following protections:
 
 ```bash
 # Path traversal prevention (runs in safe mode by default)
-./archive-alchemist.py -f suspicious.zip extract --output-dir /path/to/safe
+./archive-alchemist.py suspicious.zip extract --output-dir /path/to/safe
 
 # Symlinks are converted to regular files with information about the target
-./archive-alchemist.py -f symlinks.tar -t tar extract --output-dir /path/to/safe
+./archive-alchemist.py symlinks.tar -t tar extract --output-dir /path/to/safe
 ```
 
 ### Vulnerable Mode Extraction
 
 ```bash
 # Allow path traversal and other potentially unsafe extractions
-./archive-alchemist.py -f malicious.zip extract --vulnerable --output-dir /path/to/test
+./archive-alchemist.py malicious.zip extract --vulnerable --output-dir /path/to/test
 
 # Extract with actual symlinks instead of converting them to regular files
-./archive-alchemist.py -f symlinks.tar -t tar extract --vulnerable --output-dir /path/to/test
+./archive-alchemist.py symlinks.tar -t tar extract --vulnerable --output-dir /path/to/test
 ```
 
 ### Permission Handling
 
 ```bash
 # Preserve original permissions (default behavior)
-./archive-alchemist.py -f archive.tar -t tar extract --output-dir /path/to/extract
+./archive-alchemist.py archive.tar -t tar extract --output-dir /path/to/extract
 
 # Normalize permissions instead of preserving them
-./archive-alchemist.py -f archive.tar -t tar extract --normalize-permissions --output-dir /path/to/extract
+./archive-alchemist.py archive.tar -t tar extract --normalize-permissions --output-dir /path/to/extract
 ```
 
 ## Advanced Examples
@@ -79,30 +79,30 @@ The default safe mode provides the following protections:
 
 ```bash
 # Create a ZIP with path traversal
-./archive-alchemist.py -f zipslip.zip add "../../../tmp/evil.txt" --content "I escaped!"
+./archive-alchemist.py zipslip.zip add "../../../tmp/evil.txt" --content "I escaped!"
 
 # Test extraction in vulnerable mode to observe the behavior
-./archive-alchemist.py -f zipslip.zip extract --vulnerable --output-dir /path/to/test
+./archive-alchemist.py zipslip.zip extract --vulnerable --output-dir /path/to/test
 ```
 
 ### Testing Symlink Attacks
 
 ```bash
 # Create a TAR with a symlink pointing to a sensitive file
-./archive-alchemist.py -f symlink_attack.tar -t tar add configs/passwd --symlink "/etc/passwd"
+./archive-alchemist.py symlink_attack.tar -t tar add configs/passwd --symlink "/etc/passwd"
 
 # Extract in vulnerable mode to test how symlinks are handled
-./archive-alchemist.py -f symlink_attack.tar -t tar extract --vulnerable --output-dir /path/to/test
+./archive-alchemist.py symlink_attack.tar -t tar extract --vulnerable --output-dir /path/to/test
 ```
 
 ### Analyzing Permission-Based Attacks
 
 ```bash
 # Create archive with setuid executable
-./archive-alchemist.py -f setuid_test.tar -t tar add exploit --content "#!/bin/sh\nwhoami" --mode 4755 --setuid --uid 0
+./archive-alchemist.py setuid_test.tar -t tar add exploit --content "#!/bin/sh\nwhoami" --mode 4755 --setuid --uid 0
 
 # Extract and see how permissions are handled
-./archive-alchemist.py -f setuid_test.tar -t tar extract --output-dir /path/to/test
+./archive-alchemist.py setuid_test.tar -t tar extract --output-dir /path/to/test
 ```
 
 ## Safe Mode Features

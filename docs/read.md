@@ -7,7 +7,7 @@ The `read` (or the alias, `cat`) command extracts and displays the content of a 
 ## Syntax
 
 ```bash
-./archive-alchemist.py -f <archive> [-t <type>] read <path> [options]
+./archive-alchemist.py <archive> [-t <type>] read <path> [options]
 ```
 
 ## Options
@@ -23,20 +23,20 @@ The `read` (or the alias, `cat`) command extracts and displays the content of a 
 
 ```bash
 # Read the content of a file in a ZIP archive
-./archive-alchemist.py -f archive.zip read README.txt
+./archive-alchemist.py archive.zip read README.txt
 ```
 
 ### Reading Specific Entries with the Same Name
 
 ```bash
 # Read the first instance of duplicate.txt (index 0)
-./archive-alchemist.py -f archive.zip read duplicate.txt
+./archive-alchemist.py archive.zip read duplicate.txt
 
 # Read the second instance of duplicate.txt (index 1)
-./archive-alchemist.py -f archive.zip read duplicate.txt --index 1
+./archive-alchemist.py archive.zip read duplicate.txt --index 1
 
 # Read the third instance of duplicate.txt (index 2)
-./archive-alchemist.py -f archive.zip read duplicate.txt -i 2
+./archive-alchemist.py archive.zip read duplicate.txt -i 2
 ```
 
 ## Notes and Warnings

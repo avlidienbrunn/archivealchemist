@@ -116,7 +116,7 @@ class ArchiveAlchemist:
         )
         
         # Global options
-        parser.add_argument("-f", "--file", required=True, help="Archive file to create or modify")
+        parser.add_argument("file", help="Archive file to create or modify")
         parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
         class TypeAction(argparse.Action):
             def __call__(self, parser, namespace, values, option_string=None):
