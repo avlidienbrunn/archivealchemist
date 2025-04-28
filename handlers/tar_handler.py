@@ -683,8 +683,7 @@ class TarHandler(BaseArchiveHandler):
                     mode='r', 
                     comptype=(self.compressed if self.compressed else 'tar'), 
                     fileobj=open(args.file, 'rb'), 
-                    bufsize=tarfile.RECORDSIZE, 
-                    compresslevel=9
+                    bufsize=tarfile.RECORDSIZE
                 )
                 
                 self._process_tar_blocks(stream)

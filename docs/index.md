@@ -10,10 +10,10 @@ Welcome to the Archive Alchemist documentation. This tool allows security resear
 | [replace](replace.md) | Replace existing files or directories in an archive |
 | [append](append.md) | Add additional content to existing files in an archive |
 | [modify](modify.md) | Change file attributes or convert files to symlinks/hardlinks |
-| [remove](remove.md) | Delete files, directories, symlinks, or hardlinks from an archive |
-| [list](list.md) | Display the contents of an archive |
+| [remove/rm](remove.md) | Delete files, directories, symlinks, or hardlinks from an archive |
+| [list/ls](list.md) | Display the contents of an archive |
 | [extract](extract.md) | Extract files from an archive to the filesystem |
-| [read](read.md) | Read file from an archive to stdout |
+| [read/cat](read.md) | Read file from an archive to stdout |
 | [polyglot](polyglot.md) | Prepend content to an archive while maintaining its validity |
 
 ## Additional Documentation

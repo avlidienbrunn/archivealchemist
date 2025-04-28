@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `remove` command deletes files, directories, symlinks, or hardlinks from an archive. By default, it removes directories recursively, but this behavior can be controlled with the `--recursive` flag.
+The `remove` (or the alias, `rm`) command deletes files, directories, symlinks, or hardlinks from an archive. By default, it removes directories recursively, but this behavior can be controlled with the `--recursive` flag.
 
 ## Syntax
 

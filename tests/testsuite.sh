@@ -1147,6 +1147,26 @@ run_test "Polyglot - TAR prepend content from file" \
   "tar -xOf test_polyglot_file.tar file.txt | grep -q 'Original TAR content' && \
    xxd -ps test_polyglot_file.tar | head -1 | grep -q '50524550454e4445445f46524f4d5f46494c45'"
 
+run_test "Remove - Single file using alias 'rm'" \
+  "$ALCHEMIST -v -f test_remove_alias.zip add file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_remove_alias.zip add file2.txt --content 'File 2' && \
+   $ALCHEMIST -v -f test_remove_alias.zip rm file1.txt" \
+  "[ \$(unzip -l test_remove_alias.zip | grep -c 'file1.txt') -eq 0 ] && \
+   [ \$(unzip -l test_remove_alias.zip | grep -c 'file2.txt') -eq 1 ]"
+
+run_test "List - Simple listing using alias 'ls'" \
+  "$ALCHEMIST -v -f test_list_alias.zip add file1.txt --content 'File 1' && \
+   $ALCHEMIST -v -f test_list_alias.zip add file2.txt --content 'File 2' && \
+   $ALCHEMIST -v -f test_list_alias.zip add dir/nested.txt --content 'Nested'" \
+  "$ALCHEMIST -f test_list_alias.zip ls -l 0 | grep -q 'file1.txt' && \
+   $ALCHEMIST -f test_list_alias.zip ls -l 0 | grep -q 'file2.txt' && \
+   $ALCHEMIST -f test_list_alias.zip ls -l 0 | grep -q 'dir/nested.txt'"
+
+run_test "Read - Regular file using alias 'cat'" \
+  "rm -f test_read_regular_alias.zip && \
+   $ALCHEMIST -v -f test_read_regular_alias.zip add file.txt --content 'Content of file.txt'" \
+  "$ALCHEMIST -f test_read_regular_alias.zip cat file.txt | grep -q 'Content of file.txt'"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

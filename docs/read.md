@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `read` command extracts and displays the content of a specific file from an archive to standard output. When multiple entries with the same name exist in an archive, you can specify which instance to read using the `--index` option.
+The `read` (or the alias, `cat`) command extracts and displays the content of a specific file from an archive to standard output. When multiple entries with the same name exist in an archive, you can specify which instance to read using the `--index` option.
 
 ## Syntax
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `list` command displays the contents of an archive, showing all files, directories, symlinks, and hardlinks. It can show either a simple list of filenames or a detailed view with file attributes, similar to `ls -l` in Unix/Linux.
+The `list` (or the alias, `ls`) command displays the contents of an archive, showing all files, directories, symlinks, and hardlinks. It can show either a simple list of filenames or a detailed view with file attributes, similar to `ls -l` in Unix/Linux.
 
 ## Syntax
 

@@ -191,11 +191,15 @@ class ArchiveAlchemist:
         remove_parser = subparsers.add_parser("remove", help="Remove files from the archive")
         remove_parser.add_argument("path", help="Path within the archive to remove")
         remove_parser.add_argument("--recursive", "-r", type=int, default=1, help="Remove entries recursively (default 1/true)")
+        # Make rm alias for remove
+        subparsers._name_parser_map["rm"] = remove_parser
 
         # List command
         list_parser = subparsers.add_parser("list", help="List contents of the archive")
         list_parser.add_argument("--long", "-l", type=int, default=1, help="Show detailed listing with file attributes")
         list_parser.add_argument("--longlong", "-ll", action="store_true", help="Show very detailed listing with all header information")
+        # Make ls alias for list
+        subparsers._name_parser_map["ls"] = list_parser
 
         # Extract command
         extract_parser = subparsers.add_parser("extract", help="Extract files from the archive")
@@ -208,6 +212,8 @@ class ArchiveAlchemist:
         read_parser = subparsers.add_parser("read", help="Extract files from the archive")
         read_parser.add_argument("path", help="Path within the archive")
         read_parser.add_argument("--index", "-i", type=int, default=0, help="Index to read (in case there are several entries with the same name), default=0.")
+        # Make cat alias for read
+        subparsers._name_parser_map["cat"] = read_parser
         
         # Polyglot command
         polyglot_parser = subparsers.add_parser("polyglot", help="Create a polyglot file by prepending content to an archive")
@@ -257,13 +263,13 @@ class ArchiveAlchemist:
             handler.append(args)
         elif args.command == "modify":
             handler.modify(args)
-        elif args.command == "remove":
+        elif args.command in ["remove", "rm"]:
             handler.remove(args)
-        elif args.command == "list":
+        elif args.command in ["list", "ls"]:
             handler.list(args)
         elif args.command == "extract":
             handler.extract(args)
-        elif args.command == "read":
+        elif args.command in ["read", "cat"]:
             handler.read(args)
         elif args.command == "polyglot":
             handler.polyglot(args)
