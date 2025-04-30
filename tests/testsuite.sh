@@ -972,7 +972,7 @@ run_test "List - ZIP with special elements (longlong)" \
    $ALCHEMIST -v  test_longlong_special.zip add file.txt --content 'Regular file' --mode 0644 && \
    $ALCHEMIST -v  test_longlong_special.zip add binary.dat --content 'Binary\x00Data\xFF' && \
    $ALCHEMIST -v  test_longlong_special.zip add exec.sh --content '#!/bin/sh' --mode 0755" \
-  "$ALCHEMIST  test_longlong_special.zip list --longlong | grep -q 'external_file_attr.*0o644' && \
+  "$ALCHEMIST  test_longlong_special.zip list --longlong | grep -q 'external_file_attr.*0o100644' && \
    $ALCHEMIST  test_longlong_special.zip list --longlong | grep -q 'compression_method.*stored (no compression)' && \
    $ALCHEMIST  test_longlong_special.zip list --longlong | grep -q 'Header Field Comparison'"
 
@@ -1167,6 +1167,93 @@ run_test "Read - Regular file using alias 'cat'" \
    $ALCHEMIST -v  test_read_regular_alias.zip add file.txt --content 'Content of file.txt'" \
   "$ALCHEMIST  test_read_regular_alias.zip cat file.txt | grep -q 'Content of file.txt'"
 
+# Test for regular file attributes
+run_test "ZIP Attributes - Regular file type bits" \
+  "rm -f test_file_attrs.zip && \
+   $ALCHEMIST -v test_file_attrs.zip add regular.txt --content 'Regular file content'" \
+  "$ALCHEMIST test_file_attrs.zip list -ll | grep -q 'external_file_attr.*Unix mode: 0o100644' && \
+   $ALCHEMIST test_file_attrs.zip list -ll | grep 'flags' | grep -q '0 (none)'"
+
+# Test for directory attributes
+run_test "ZIP Attributes - Directory type bits" \
+  "rm -f test_dir_attrs.zip && \
+   mkdir -p test_dir_for_attrs && \
+   $ALCHEMIST -v test_dir_attrs.zip add mydir/ --content-directory test_dir_for_attrs" \
+  "$ALCHEMIST test_dir_attrs.zip list -ll | grep -q 'external_file_attr.*Unix mode: 0o40775'"
+
+# Test for symlink attributes
+run_test "ZIP Attributes - Symlink type bits" \
+  "rm -f test_symlink_attrs.zip && \
+   $ALCHEMIST -v test_symlink_attrs.zip add link.txt --symlink 'target.txt'" \
+  "$ALCHEMIST test_symlink_attrs.zip list -ll | grep -q 'external_file_attr.*Unix mode: 0o120755' && \
+   $ALCHEMIST test_symlink_attrs.zip list -ll | grep -q 'link.txt -> target.txt'"
+
+# Test for explicit mode with file type preservation
+run_test "ZIP Attributes - Custom permissions with file type" \
+  "rm -f test_custom_mode.zip && \
+   $ALCHEMIST -v test_custom_mode.zip add script.sh --content '#!/bin/sh' --mode 0755" \
+  "$ALCHEMIST test_custom_mode.zip list -ll | grep -q 'external_file_attr.*Unix mode: 0o100755'"
+
+# Test for directory with custom mode
+run_test "ZIP Attributes - Directory with custom mode" \
+  "rm -f test_dir_custom_mode.zip && \
+   mkdir -p test_empty_dir && \
+   $ALCHEMIST -v test_dir_custom_mode.zip add restricted/ --content-directory test_empty_dir --mode 0700" \
+  "$ALCHEMIST test_dir_custom_mode.zip list -ll | grep -q 'external_file_attr.*Unix mode: 0o40700'"
+
+# Test for attribute preservation during modify
+run_test "ZIP Attributes - Preserve type during modify" \
+  "rm -f test_modify_attrs.zip && \
+   $ALCHEMIST -v test_modify_attrs.zip add file.txt --content 'Original' --mode 0644 && \
+   $ALCHEMIST -v test_modify_attrs.zip modify file.txt --mode 0600" \
+  "$ALCHEMIST test_modify_attrs.zip list -ll | grep -q 'external_file_attr.*Unix mode: 0o100600'"
+
+# Test for DOS attribute for readonly
+run_test "ZIP Attributes - Converting file to directory" \
+  "rm -f test_convert_type.zip && \
+   $ALCHEMIST -v test_convert_type.zip add dir_placeholder.txt --content 'Will become a directory' && \
+   mkdir -p test_empty_dir && \
+   $ALCHEMIST -v test_convert_type.zip replace dir_placeholder.txt/ --content-directory test_empty_dir" \
+  "$ALCHEMIST test_convert_type.zip list -ll | grep -q 'external_file_attr.*Unix mode: 0o40'"
+
+# Test extract for verifying permissions 
+run_test "ZIP Attributes - Extract with correct permissions" \
+  "rm -f test_extract_perms.zip && \
+   mkdir -p test_extract_perms_dir && \
+   $ALCHEMIST -v test_extract_perms.zip add script.sh --content '#!/bin/sh\necho test' --mode 0755 && \
+   $ALCHEMIST -v test_extract_perms.zip add regular.txt --content 'Regular file' --mode 0644 && \
+   mkdir -p test_dir_perms && \
+   $ALCHEMIST -v test_extract_perms.zip add mydir/ --content-directory test_empty_dir --mode 0750 && \
+   $ALCHEMIST -v test_extract_perms.zip extract --output-dir test_extract_perms_dir" \
+  "[ -f test_extract_perms_dir/script.sh ] && \
+   [ -f test_extract_perms_dir/regular.txt ] && \
+   [ -d test_extract_perms_dir/mydir ] && \
+   [ \$(stat -c '%a' test_extract_perms_dir/script.sh) = '755' ] && \
+   [ \$(stat -c '%a' test_extract_perms_dir/regular.txt) = '644' ] && \
+   [ \$(stat -c '%a' test_extract_perms_dir/mydir) = '750' ]"
+
+# Test for multiple scenarios in a single archive
+run_test "ZIP Attributes - Multiple entry types" \
+  "rm -f test_mixed_types.zip && \
+   $ALCHEMIST -v test_mixed_types.zip add file.txt --content 'Regular file' --mode 0644 && \
+   $ALCHEMIST -v test_mixed_types.zip add script.sh --content '#!/bin/sh' --mode 0755 && \
+   $ALCHEMIST -v test_mixed_types.zip add link.txt --symlink 'file.txt' && \
+   mkdir -p test_empty_dir && \
+   $ALCHEMIST -v test_mixed_types.zip add dir/ --content-directory test_empty_dir --mode 0755" \
+  "$ALCHEMIST test_mixed_types.zip list -ll > mixed_types_output.txt && \
+   grep -q 'external_file_attr.*Unix mode: 0o100644' mixed_types_output.txt && \
+   grep -q 'external_file_attr.*Unix mode: 0o100755' mixed_types_output.txt && \
+   grep -q 'external_file_attr.*Unix mode: 0o120755' mixed_types_output.txt && \
+   grep -q 'external_file_attr.*Unix mode: 0o40755' mixed_types_output.txt"
+
+# Test for real Unix file attributes in external_attr when examined with unzip -v
+run_test "ZIP Attributes - Verify with zipinfo command" \
+  "rm -f test_unzip_attrs.zip && \
+   $ALCHEMIST -v test_unzip_attrs.zip add file.txt --content 'Regular file' --mode 0644 && \
+   $ALCHEMIST -v test_unzip_attrs.zip add dir/ --content-directory test_empty_dir" \
+  "zipinfo test_unzip_attrs.zip | grep 'file.txt' | grep -q -- '-rw-r--r--' && \
+   zipinfo test_unzip_attrs.zip | grep 'dir/' | grep -q -- 'drwxrwxr-x'"
+   
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

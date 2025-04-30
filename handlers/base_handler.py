@@ -187,7 +187,7 @@ class BaseArchiveHandler(ABC):
                         mode_to_use = args.mode if hasattr(args, 'mode') and args.mode is not None else 0o755
                     
                     if args.verbose:
-                        print(f"Adding directory {parent}/")
+                        print(f"Adding directory (parent) {parent}/ with mode {self.format_mode(mode_to_use)} ({oct(mode_to_use)})")
                     
                     # Create directory entry (ends with /)
                     dir_args = type('Args', (), {
@@ -198,14 +198,14 @@ class BaseArchiveHandler(ABC):
                         'content_directory': args.content_directory,
                         'symlink': None,
                         'hardlink': None,
+                        'verbose': args.verbose if hasattr(args, 'verbose') else None,
                         'mode': mode_to_use,
                         'uid': args.uid if hasattr(args, 'uid') else None,
                         'gid': args.gid if hasattr(args, 'gid') else None,
                         'mtime': args.mtime if hasattr(args, 'mtime') else None,
                         'setuid': args.setuid if hasattr(args, 'setuid') else False,
                         'setgid': args.setgid if hasattr(args, 'setgid') else False,
-                        'sticky': args.sticky if hasattr(args, 'sticky') else False,
-                        'verbose': False  # Avoid duplicate verbose output
+                        'sticky': args.sticky if hasattr(args, 'sticky') else False
                     })
                     
                     # Add the directory entry
@@ -227,7 +227,7 @@ class BaseArchiveHandler(ABC):
                 mode_to_use = args.mode if hasattr(args, 'mode') and args.mode is not None else 0o755
             
             if args.verbose:
-                print(f"Adding directory {dir_path}/")
+                print(f"Adding directory {dir_path}/ with mode {self.format_mode(mode_to_use)} ({oct(mode_to_use)})")
                 
             # Create directory entry
             dir_args = type('Args', (), {
@@ -239,13 +239,13 @@ class BaseArchiveHandler(ABC):
                 'symlink': None,
                 'hardlink': None,
                 'mode': mode_to_use,
+                'verbose': args.verbose if hasattr(args, 'verbose') else None,
                 'uid': args.uid if hasattr(args, 'uid') else None,
                 'gid': args.gid if hasattr(args, 'gid') else None,
                 'mtime': args.mtime if hasattr(args, 'mtime') else None,
                 'setuid': args.setuid if hasattr(args, 'setuid') else False,
                 'setgid': args.setgid if hasattr(args, 'setgid') else False,
-                'sticky': args.sticky if hasattr(args, 'sticky') else False,
-                'verbose': False  # Avoid duplicate verbose output
+                'sticky': args.sticky if hasattr(args, 'sticky') else False
             })
             
             # Add the directory entry

@@ -207,6 +207,67 @@ class ZipHandler(BaseArchiveHandler):
         }
         return compression_types.get(compress_type, f"unknown ({compress_type})")
 
+    def _set_file_permissions(self, info, mode=None, is_dir=False, is_symlink=False, preserve_type=False, orig_attr=None):
+        """Set file permissions and type for a ZipInfo object.
+        
+        Args:
+            info: The ZipInfo object to modify
+            mode: Permission bits (0o777 format). If None, uses defaults
+            is_dir: Whether this entry is a directory
+            is_symlink: Whether this entry is a symlink
+            preserve_type: Whether to preserve existing type bits from orig_attr
+            orig_attr: Original external_attr value (only used if preserve_type is True)
+        """
+        # Define file type constants
+        S_IFREG = 0o100000  # Regular file
+        S_IFDIR = 0o040000  # Directory
+        S_IFLNK = 0o120000  # Symbolic link
+        DOS_ARCHIVE    = 0x20  # Archive bit
+        DOS_DIRECTORY  = 0x10  # Directory
+        DOS_HIDDEN     = 0x02  # Hidden
+        DOS_READONLY   = 0x01  # Read-only
+        
+        # Default permissions if not specified
+        if mode is None:
+            if is_dir:
+                mode = 0o775
+            elif is_symlink:
+                mode = 0o755
+            else:
+                mode = 0o644
+
+        # TODO: Should DOS_ARCHIVE default? "file has changed since last backup"
+        dos_attr = 0x00
+        if is_dir:
+            dos_attr = DOS_DIRECTORY
+        
+        # TODO: Should support READONLY?
+        #if mode & 0o200 == 0:  # Check if write bit (0o200) is not set
+        #    dos_attr |= DOS_READONLY
+        
+        # TODO: Should support HIDDEN?
+        #if is_dir and info.filename.startswith("."):  # Check if "hidden directory"
+        #    dos_attr |= DOS_HIDDEN
+        #print(f"\tSetting permission on {info.filename} with mode {self.format_mode(mode)} ({oct(mode)})")
+        
+        # Apply file type bits
+        if preserve_type and orig_attr is not None:
+            # Extract original file type bits (top 4 bits of mode)
+            type_bits = orig_attr >> 16 & 0o170000
+            full_mode = (mode & 0o7777) | type_bits
+        else:
+            # Set appropriate file type bits based on entry type
+            if is_symlink:
+                full_mode = (mode & 0o7777) | S_IFLNK
+            elif is_dir:
+                full_mode = (mode & 0o7777) | S_IFDIR
+            else:
+                full_mode = (mode & 0o7777) | S_IFREG
+        
+        # Combine Unix permission bits (high 16 bits) with MS-DOS attributes (low byte)
+        info.external_attr = (full_mode << 16) | dos_attr
+        return info
+
     def _describe_zip_flags(self, flags):
         """Describe the meaning of ZIP general purpose bit flags."""
         descriptions = []
@@ -292,7 +353,7 @@ class ZipHandler(BaseArchiveHandler):
         # Create archive or open existing
         if os.path.exists(args.file):            
             archive = self._open_existing_archive(args.file)
-
+            
             # --content-directory should replace if exists
             file_exists = args.path in archive.namelist()
             if file_exists and getattr(args, 'content_directory', None) is not None:
@@ -320,16 +381,14 @@ class ZipHandler(BaseArchiveHandler):
         try:
             # Process symlink
             if args.symlink:
-                # For ZIP, we'll use the "0xA" file type flag to mark as symlink
-                # This is compatible with InfoZIP and other modern ZIP tools
                 info = zipfile.ZipInfo(args.path)
                 
-                # Set the external attributes to mark as a symlink
-                # Unix symlink file mode (0120000) shifted left 16 bits
-                symlink_mode = 0o120000
-                if args.mode:
-                    symlink_mode = (args.mode & 0o777) | 0o120000
-                info.external_attr = symlink_mode << 16
+                # Set file permissions for symlink
+                self._set_file_permissions(
+                    info,
+                    mode=args.mode, 
+                    is_symlink=True
+                )
                 
                 # Set modification time if specified
                 if args.mtime:
@@ -349,6 +408,20 @@ class ZipHandler(BaseArchiveHandler):
                 print("Warning: ZIP format doesn't support hardlinks. "
                     "Creating a regular file instead.")
                 info = zipfile.ZipInfo(args.path)
+                
+                # Set file permissions for regular file
+                self._set_file_permissions(
+                    info,
+                    mode=args.mode, 
+                    is_dir=False
+                )
+                
+                # Set modification time if specified
+                if args.mtime:
+                    dt = datetime.fromtimestamp(args.mtime)
+                    info.date_time = (dt.year, dt.month, dt.day, 
+                                    dt.hour, dt.minute, dt.second)
+                
                 archive.writestr(info, args.hardlink)
             
             # Process regular file
@@ -356,13 +429,15 @@ class ZipHandler(BaseArchiveHandler):
                 # For ZIP, we can control the basic info using ZipInfo
                 info = zipfile.ZipInfo(args.path)
                 
-                # Set file mode if specified
-                if args.mode:
-                    # ZIP external_attr is mode << 16
-                    info.external_attr = args.mode << 16
-                else:
-                    # Default to 0o644
-                    info.external_attr = 0o744 << 16
+                # Determine if this is a directory entry
+                is_dir = args.path.endswith('/')
+                
+                # Set file permissions
+                self._set_file_permissions(
+                    info,
+                    mode=args.mode, 
+                    is_dir=is_dir
+                )
                 
                 # Set modification time if specified
                 if args.mtime:
@@ -373,11 +448,14 @@ class ZipHandler(BaseArchiveHandler):
                 
                 # Set special bits if requested
                 if args.setuid or args.setgid or args.sticky:
-                    mode = 0o744  # default
-                    if args.mode:
-                        mode = args.mode
+                    mode = args.mode if args.mode else (0o755 if is_dir else 0o644)
                     mode = self.apply_special_bits(mode, args)
-                    info.external_attr = mode << 16
+                    # Apply again with the special bits
+                    self._set_file_permissions(
+                        info,
+                        mode=mode, 
+                        is_dir=is_dir
+                    )
                 
                 # Get content from either --content or --content-file
                 try:
@@ -509,12 +587,12 @@ class ZipHandler(BaseArchiveHandler):
                 
                 # Convert to symlink
                 if args.symlink:
-                    # Set the external attributes to mark as a symlink
-                    # Unix symlink file mode (0120000) shifted left 16 bits
-                    symlink_mode = 0o120000
-                    if args.mode:
-                        symlink_mode = (args.mode & 0o777) | 0o120000
-                    info.external_attr = symlink_mode << 16
+                    # Set file permissions for symlink
+                    self._set_file_permissions(
+                        info,
+                        mode=args.mode, 
+                        is_symlink=True
+                    )
                     
                     # Set symlink target as the file content
                     zip_out.writestr(info, args.symlink)
@@ -523,16 +601,20 @@ class ZipHandler(BaseArchiveHandler):
                         print(f"Converting {args.path} to symlink -> {args.symlink}")
                 
                 # Convert to hardlink - ZIP doesn't support hardlinks natively
-                # We'll warn the user and create a file with the target as content
                 elif args.hardlink:
                     print("Warning: ZIP format doesn't support hardlinks. "
                         "Creating a file with hardlink target as content.")
                     
-                    # Apply regular file attributes
-                    if args.mode:
-                        info.external_attr = args.mode << 16
-                    else:
-                        info.external_attr = orig_info.external_attr
+                    # Set file permissions, preserving original type if possible
+                    is_dir = args.path.endswith('/')
+                    
+                    self._set_file_permissions(
+                        info,
+                        mode=args.mode, 
+                        is_dir=is_dir, 
+                        preserve_type=True, 
+                        orig_attr=orig_info.external_attr
+                    )
                     
                     # Set special bits if requested
                     if args.setuid or args.setgid or args.sticky:
@@ -540,18 +622,29 @@ class ZipHandler(BaseArchiveHandler):
                         if args.mode:
                             mode = args.mode
                         mode = self.apply_special_bits(mode, args)
-                        info.external_attr = mode << 16
+                        self._set_file_permissions(
+                            info,
+                            mode=mode, 
+                            is_dir=is_dir, 
+                            preserve_type=True, 
+                            orig_attr=orig_info.external_attr
+                        )
                     
                     # Add the file with hardlink target as content
                     zip_out.writestr(info, args.hardlink)
                 
                 # Regular attribute modification
                 else:
-                    # Apply changes
-                    if args.mode:
-                        info.external_attr = args.mode << 16
-                    else:
-                        info.external_attr = orig_info.external_attr
+                    # Determine if this is a directory
+                    is_dir = args.path.endswith('/')
+                    
+                    # Set file permissions, preserving file type
+                    self._set_file_permissions(
+                        info,
+                        mode=args.mode, 
+                        preserve_type=True, 
+                        orig_attr=orig_info.external_attr
+                    )
                     
                     # Set special bits if requested
                     if args.setuid or args.setgid or args.sticky:
@@ -560,7 +653,12 @@ class ZipHandler(BaseArchiveHandler):
                         if args.mode:
                             mode = args.mode
                         mode = self.apply_special_bits(mode, args)
-                        info.external_attr = mode << 16
+                        self._set_file_permissions(
+                            info,
+                            mode=mode, 
+                            preserve_type=True, 
+                            orig_attr=orig_info.external_attr
+                        )
                     
                     # Add the modified entry with original content
                     zip_out.writestr(info, content)
@@ -923,6 +1021,14 @@ class ZipHandler(BaseArchiveHandler):
                     if is_dir:
                         if not os.path.exists(output_path):
                             os.makedirs(output_path, exist_ok=True)
+                        # Set permissions - preserve by default, normalize if requested
+                        if not args.normalize_permissions and not is_symlink:
+                            mode = (entry.external_attr >> 16) & 0o777
+                            if mode:
+                                try:
+                                    os.chmod(output_path, mode)
+                                except:
+                                    print(f"Warning: Could not set permissions for {output_path}")
                         if args.verbose:
                             print(f"Created directory: {output_path}")
                         continue
