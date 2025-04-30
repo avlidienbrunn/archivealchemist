@@ -1177,7 +1177,7 @@ run_test "ZIP Attributes - Regular file type bits" \
 # Test for directory attributes
 run_test "ZIP Attributes - Directory type bits" \
   "rm -f test_dir_attrs.zip && \
-   mkdir -p test_dir_for_attrs && \
+   mkdir -p test_dir_for_attrs && chmod 775 ./test_dir_for_attrs &&  \
    $ALCHEMIST -v test_dir_attrs.zip add mydir/ --content-directory test_dir_for_attrs" \
   "$ALCHEMIST test_dir_attrs.zip list -ll | grep -q 'external_file_attr.*Unix mode: 0o40775'"
 
@@ -1253,7 +1253,7 @@ run_test "ZIP Attributes - Verify with zipinfo command" \
    $ALCHEMIST -v test_unzip_attrs.zip add dir/ --content-directory test_empty_dir" \
   "zipinfo test_unzip_attrs.zip | grep 'file.txt' | grep -q -- '-rw-r--r--' && \
    zipinfo test_unzip_attrs.zip | grep 'dir/' | grep -q -- 'drwxrwxr-x'"
-   
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then
