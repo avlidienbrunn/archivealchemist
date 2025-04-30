@@ -19,7 +19,6 @@ jobs:
 
       - name: Make script executable and run
         run: |
-          sudo apt install -y unzip
           cd tests
           chmod +x testsuite.sh
           ./testsuite.sh

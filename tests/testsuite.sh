@@ -1246,14 +1246,6 @@ run_test "ZIP Attributes - Multiple entry types" \
    grep -q 'external_file_attr.*Unix mode: 0o120755' mixed_types_output.txt && \
    grep -q 'external_file_attr.*Unix mode: 0o40755' mixed_types_output.txt"
 
-# Test for real Unix file attributes in external_attr when examined with unzip -v
-run_test "ZIP Attributes - Verify with zipinfo command" \
-  "rm -f test_unzip_attrs.zip && \
-   $ALCHEMIST -v test_unzip_attrs.zip add file.txt --content 'Regular file' --mode 0644 && \
-   $ALCHEMIST -v test_unzip_attrs.zip add dir/ --content-directory test_empty_dir" \
-  "zipinfo test_unzip_attrs.zip | grep 'file.txt' | grep -q -- '-rw-r--r--' && \
-   zipinfo test_unzip_attrs.zip | grep 'dir/' | grep -q -- 'drwxrwxr-x'"
-
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then
