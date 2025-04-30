@@ -57,7 +57,7 @@ cleanup() {
   rm -rf test_dir_*
   rm -rf test_replace_*
   rm -rf test_read_*
-  rm -rf test_empty_dirs
+  rm -rf test_empty_*
   mkdir -p test_extract
 }
 
@@ -1245,6 +1245,13 @@ run_test "ZIP Attributes - Multiple entry types" \
    grep -q 'external_file_attr.*Unix mode: 0o100755' mixed_types_output.txt && \
    grep -q 'external_file_attr.*Unix mode: 0o120755' mixed_types_output.txt && \
    grep -q 'external_file_attr.*Unix mode: 0o40755' mixed_types_output.txt"
+
+run_test "ZIP UID/GID - Basic storage" \
+  "rm -f test_uid_gid.zip && \
+   $ALCHEMIST -v test_uid_gid.zip add file.txt --content 'Test file' --uid 1234 --gid 1234" \
+  "$ALCHEMIST test_uid_gid.zip list -ll | grep -q 'file.txt' && \
+   $ALCHEMIST test_uid_gid.zip list -ll | grep -q 'uid: 1234' && \
+   $ALCHEMIST test_uid_gid.zip list -ll | grep -q 'gid: 1234'"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"

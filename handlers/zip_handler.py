@@ -207,17 +207,8 @@ class ZipHandler(BaseArchiveHandler):
         }
         return compression_types.get(compress_type, f"unknown ({compress_type})")
 
-    def _set_file_permissions(self, info, mode=None, is_dir=False, is_symlink=False, preserve_type=False, orig_attr=None):
-        """Set file permissions and type for a ZipInfo object.
-        
-        Args:
-            info: The ZipInfo object to modify
-            mode: Permission bits (0o777 format). If None, uses defaults
-            is_dir: Whether this entry is a directory
-            is_symlink: Whether this entry is a symlink
-            preserve_type: Whether to preserve existing type bits from orig_attr
-            orig_attr: Original external_attr value (only used if preserve_type is True)
-        """
+    def _set_file_permissions(self, info, mode=None, is_dir=False, is_symlink=False, preserve_type=False, orig_attr=None, uid=None, gid=None):
+        """Set file permissions and type for a ZipInfo object."""
         # Define file type constants
         S_IFREG = 0o100000  # Regular file
         S_IFDIR = 0o040000  # Directory
@@ -226,7 +217,6 @@ class ZipHandler(BaseArchiveHandler):
         DOS_DIRECTORY  = 0x10  # Directory
         DOS_HIDDEN     = 0x02  # Hidden
         DOS_READONLY   = 0x01  # Read-only
-        
         # Default permissions if not specified
         if mode is None:
             if is_dir:
@@ -240,15 +230,6 @@ class ZipHandler(BaseArchiveHandler):
         dos_attr = 0x00
         if is_dir:
             dos_attr = DOS_DIRECTORY
-        
-        # TODO: Should support READONLY?
-        #if mode & 0o200 == 0:  # Check if write bit (0o200) is not set
-        #    dos_attr |= DOS_READONLY
-        
-        # TODO: Should support HIDDEN?
-        #if is_dir and info.filename.startswith("."):  # Check if "hidden directory"
-        #    dos_attr |= DOS_HIDDEN
-        #print(f"\tSetting permission on {info.filename} with mode {self.format_mode(mode)} ({oct(mode)})")
         
         # Apply file type bits
         if preserve_type and orig_attr is not None:
@@ -266,7 +247,84 @@ class ZipHandler(BaseArchiveHandler):
         
         # Combine Unix permission bits (high 16 bits) with MS-DOS attributes (low byte)
         info.external_attr = (full_mode << 16) | dos_attr
+        # Add UID/GID to extra field if specified
+        if uid is not None or gid is not None:
+            # Use defaults if only one is specified
+            if uid is None:
+                uid = 0
+            if gid is None:
+                gid = 0
+            
+            # Add the "Info-ZIP Unix Extra Field (type 3)" for UID/GID
+            self._add_uid_gid_extra_field(info, uid, gid)
+        
         return info
+
+    def _add_uid_gid_extra_field(self, info, uid, gid):
+        """Add UID/GID to ZipInfo extra field using Info-ZIP Unix format.
+        
+        This uses the "Info-ZIP Unix Extra Field (type 3)" format with header ID 0x7875.
+        
+        Args:
+            info: The ZipInfo object to modify
+            uid: User ID
+            gid: Group ID
+        """
+        # Info-ZIP Unix Extra Field (type 3) header ID
+        HEADER_ID = 0x7875
+        
+        # Current extra data (preserve any existing fields)
+        extra_data = info.extra if hasattr(info, 'extra') and info.extra else b''
+        
+        # Remove any existing Unix UID/GID fields (to avoid duplicates)
+        pos = 0
+        new_extra = bytearray()
+        
+        while pos + 4 <= len(extra_data):
+            header_id = int.from_bytes(extra_data[pos:pos+2], byteorder='little')
+            data_size = int.from_bytes(extra_data[pos+2:pos+4], byteorder='little')
+            
+            # Skip over existing Unix UID/GID field if present
+            if header_id == HEADER_ID:
+                pos += 4 + data_size
+                continue
+            
+            # Copy other fields
+            field_size = 4 + data_size
+            new_extra.extend(extra_data[pos:pos+field_size])
+            pos += field_size
+        
+        # Format: Version(1) + UID Size(1) + UID + GID Size(1) + GID
+        # Version is always 1 in this implementation
+        version = 1
+        
+        # Determine minimum bytes needed for UID and GID
+        uid_bytes = uid.to_bytes((uid.bit_length() + 7) // 8 or 1, byteorder='little')
+        gid_bytes = gid.to_bytes((gid.bit_length() + 7) // 8 or 1, byteorder='little')
+        
+        # Limit sizes to 255 bytes (field limitation)
+        uid_bytes = uid_bytes[:255]
+        gid_bytes = gid_bytes[:255]
+        
+        # Create the field data
+        field_data = bytearray()
+        field_data.append(version)  # Version
+        field_data.append(len(uid_bytes))  # UID size
+        field_data.extend(uid_bytes)  # UID
+        field_data.append(len(gid_bytes))  # GID size
+        field_data.extend(gid_bytes)  # GID
+        
+        # Create the header (ID + size + data)
+        header = bytearray()
+        header.extend(HEADER_ID.to_bytes(2, byteorder='little'))  # Header ID
+        header.extend(len(field_data).to_bytes(2, byteorder='little'))  # Data size
+        header.extend(field_data)  # Field data
+        
+        # Append the new field to the extra data
+        new_extra.extend(header)
+        
+        # Update the ZipInfo extra field
+        info.extra = bytes(new_extra)
 
     def _describe_zip_flags(self, flags):
         """Describe the meaning of ZIP general purpose bit flags."""
@@ -387,7 +445,9 @@ class ZipHandler(BaseArchiveHandler):
                 self._set_file_permissions(
                     info,
                     mode=args.mode, 
-                    is_symlink=True
+                    is_symlink=True,
+                    uid=args.uid if hasattr(args, 'uid') else None,
+                    gid=args.gid if hasattr(args, 'gid') else None
                 )
                 
                 # Set modification time if specified
@@ -413,7 +473,9 @@ class ZipHandler(BaseArchiveHandler):
                 self._set_file_permissions(
                     info,
                     mode=args.mode, 
-                    is_dir=False
+                    is_dir=False,
+                    uid=args.uid if hasattr(args, 'uid') else None,
+                    gid=args.gid if hasattr(args, 'gid') else None
                 )
                 
                 # Set modification time if specified
@@ -436,7 +498,9 @@ class ZipHandler(BaseArchiveHandler):
                 self._set_file_permissions(
                     info,
                     mode=args.mode, 
-                    is_dir=is_dir
+                    is_dir=is_dir,
+                    uid=args.uid if hasattr(args, 'uid') else None,
+                    gid=args.gid if hasattr(args, 'gid') else None
                 )
                 
                 # Set modification time if specified
@@ -454,7 +518,9 @@ class ZipHandler(BaseArchiveHandler):
                     self._set_file_permissions(
                         info,
                         mode=mode, 
-                        is_dir=is_dir
+                        is_dir=is_dir,
+                        uid=args.uid if hasattr(args, 'uid') else None,
+                        gid=args.gid if hasattr(args, 'gid') else None
                     )
                 
                 # Get content from either --content or --content-file
@@ -591,7 +657,9 @@ class ZipHandler(BaseArchiveHandler):
                     self._set_file_permissions(
                         info,
                         mode=args.mode, 
-                        is_symlink=True
+                        is_symlink=True,
+                        uid=args.uid if hasattr(args, 'uid') else None,
+                        gid=args.gid if hasattr(args, 'gid') else None
                     )
                     
                     # Set symlink target as the file content
@@ -613,7 +681,9 @@ class ZipHandler(BaseArchiveHandler):
                         mode=args.mode, 
                         is_dir=is_dir, 
                         preserve_type=True, 
-                        orig_attr=orig_info.external_attr
+                        orig_attr=orig_info.external_attr,
+                        uid=args.uid if hasattr(args, 'uid') else None,
+                        gid=args.gid if hasattr(args, 'gid') else None
                     )
                     
                     # Set special bits if requested
@@ -627,7 +697,9 @@ class ZipHandler(BaseArchiveHandler):
                             mode=mode, 
                             is_dir=is_dir, 
                             preserve_type=True, 
-                            orig_attr=orig_info.external_attr
+                            orig_attr=orig_info.external_attr,
+                            uid=args.uid if hasattr(args, 'uid') else None,
+                            gid=args.gid if hasattr(args, 'gid') else None
                         )
                     
                     # Add the file with hardlink target as content
@@ -643,7 +715,9 @@ class ZipHandler(BaseArchiveHandler):
                         info,
                         mode=args.mode, 
                         preserve_type=True, 
-                        orig_attr=orig_info.external_attr
+                        orig_attr=orig_info.external_attr,
+                        uid=args.uid if hasattr(args, 'uid') else None,
+                        gid=args.gid if hasattr(args, 'gid') else None
                     )
                     
                     # Set special bits if requested
@@ -657,7 +731,9 @@ class ZipHandler(BaseArchiveHandler):
                             info,
                             mode=mode, 
                             preserve_type=True, 
-                            orig_attr=orig_info.external_attr
+                            orig_attr=orig_info.external_attr,
+                            uid=args.uid if hasattr(args, 'uid') else None,
+                            gid=args.gid if hasattr(args, 'gid') else None
                         )
                     
                     # Add the modified entry with original content
