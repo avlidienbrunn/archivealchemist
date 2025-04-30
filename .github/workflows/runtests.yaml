@@ -18,7 +18,7 @@ jobs:
           python-version: '3.x'
       
       - name: Install unzip (for tests)
-          run: sudo apt install -y unzip
+        run: sudo apt install -y unzip
 
       - name: Make script executable and run
         run: |
