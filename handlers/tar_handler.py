@@ -700,7 +700,8 @@ class TarHandler(BaseArchiveHandler):
                 self._process_tar_blocks(stream)
                 
                 # End with regular long/compact listing summary
-                del args.longlong
+                args.longlong = None
+                args.long = 1
                 self.list(args)
         
         except tarfile.ReadError:

@@ -922,8 +922,8 @@ run_test "List - Very verbose TAR listing (longlong)" \
    $ALCHEMIST -v  test_longlong.tar -t tar add symlink.txt --symlink '/etc/passwd' && \
    $ALCHEMIST -v  test_longlong.tar -t tar add dir/nested.txt --content 'Nested content'" \
   "$ALCHEMIST  test_longlong.tar -t tar list --longlong | grep -q 'file.txt' && \
-   $ALCHEMIST  test_longlong.tar -t tar list --longlong | grep -q 'linkname       : /etc/passwd' && \
-   $ALCHEMIST  test_longlong.tar -t tar list --longlong | grep -q 'symlink.txt -> /etc/passwd' && \
+   $ALCHEMIST  test_longlong.tar -t tar list -l2 | grep -q 'linkname       : /etc/passwd' && \
+   $ALCHEMIST  test_longlong.tar -t tar list --long 2 | grep -q 'symlink.txt -> /etc/passwd' && \
    $ALCHEMIST  test_longlong.tar -t tar list --longlong | grep -q 'dir/nested.txt'"
 
 # Test for --longlong option on TAR.GZ archives
@@ -953,8 +953,8 @@ run_test "List - Very verbose ZIP listing (longlong)" \
    $ALCHEMIST -v  test_longlong.zip add symlink.txt --symlink '/etc/passwd' && \
    $ALCHEMIST -v  test_longlong.zip add dir/nested.txt --content 'Nested in ZIP'" \
   "$ALCHEMIST  test_longlong.zip list --longlong | grep -q 'file.txt' && \
-   $ALCHEMIST  test_longlong.zip list --longlong | grep -q 'Local File Header' && \
-   $ALCHEMIST  test_longlong.zip list --longlong | grep -q 'Central Directory Header' && \
+   $ALCHEMIST  test_longlong.zip list -l2 | grep -q 'Local File Header' && \
+   $ALCHEMIST  test_longlong.zip list --long 2 | grep -q 'Central Directory Header' && \
    $ALCHEMIST  test_longlong.zip list --longlong | grep -q 'symlink.txt' && \
    $ALCHEMIST  test_longlong.zip list --longlong | grep -q 'dir/nested.txt'"
 
