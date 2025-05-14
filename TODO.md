@@ -13,3 +13,4 @@
 * "spray" flag in add? ../bla, ../../bla, /proc/X/cwd/bla, /proc/X/cwd/../bla, /proc/Y/bla etc
 * refactor recursive add dir
 * zip MS-DOS attributes, HIDDEN/READONLY support?
+* support for other file types in tar (FIFO etc)

@@ -232,5 +232,3 @@ File: linkme.txt
 - ZIP archives store timestamps with less precision than TAR archives (ZIP stores to the nearest 2 seconds), so the modification times shown might differ slightly from the original file times.
 
 - For compressed archives (tar.gz, tar.xz, tar.bz2), the list command decompresses the archive in memory to read its contents, which may use more resources for large archives.
-
-- By default, the listing is sorted by filename. This helps maintain consistent output for testing and scripting purposes.

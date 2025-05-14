@@ -51,13 +51,8 @@ run_test() {
 # Clean up any existing test archives
 cleanup() {
   echo "Cleaning up test archives..."
-  rm -f test_*.zip test_*.tar test_*.tar.gz *.txt *.unknown *.tgz *.bz2 *.xz *.txz *.tbz2 test_magic.* binary?source.bin
-  rm -rf test_extract
-  rm -rf test_extract_*
-  rm -rf test_dir_*
-  rm -rf test_replace_*
-  rm -rf test_read_*
-  rm -rf test_empty_*
+  rm -f *.txt *.unknown *.tgz *.bz2 *.xz *.txz *.tbz2 test_magic.* binary?source.bin
+  rm -rf test_*
   mkdir -p test_extract
 }
 
@@ -1272,6 +1267,16 @@ run_test "ZIP - Replace root of archive with --content-directory" \
    $ALCHEMIST -v  test_replace_dir_root.zip replace archive/ --content-directory test_replace_dir_root_zip_src" \
   "$ALCHEMIST test_replace_dir_root.zip cat archive/file.txt | grep -q 'Replaced via directory' && \
    $ALCHEMIST test_replace_dir_root.zip list | grep -qv 'replaceme.txt'"
+
+run_test "TAR - Ensure directories are added as DIRTYPE" \
+  "rm -f test_add_dir.tar && \
+   $ALCHEMIST -v  test_add_dir.tar add archive/file.txt --content 'Original content' && \
+   $ALCHEMIST -v  test_add_dir.tar add archive/replaceme.txt --content 'Replace me' && \
+   mkdir -p test_add_dir_tar && \
+   echo 'Replaced via directory' > test_add_dir_tar/file.txt && \
+   $ALCHEMIST -v  test_add_dir.tar replace archive/ --content-directory test_add_dir_tar" \
+  "$ALCHEMIST test_add_dir.tar list -ll | grep -q ' (directory))' && \
+   $ALCHEMIST test_add_dir.tar list -l1 | grep -q 'drwxrwxr-x'"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"

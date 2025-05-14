@@ -287,7 +287,7 @@ class TarHandler(BaseArchiveHandler):
                 tarinfo.type = tarfile.SYMTYPE
                 tarinfo.linkname = args.symlink
                 tarinfo.size = 0  # Symlinks don't have content
-                tarinfo.mode = 0o744
+                tarinfo.mode = 0o644
                 
                 # Apply attributes if specified
                 if args.mode:
@@ -318,7 +318,7 @@ class TarHandler(BaseArchiveHandler):
                 tarinfo.type = tarfile.LNKTYPE
                 tarinfo.linkname = args.hardlink
                 tarinfo.size = 0  # Hardlinks don't have content
-                tarinfo.mode = 0o744
+                tarinfo.mode = 0o644
                 
                 # Apply attributes if specified
                 if args.mode:
@@ -354,7 +354,14 @@ class TarHandler(BaseArchiveHandler):
                 # Create a tarinfo for the file
                 tarinfo = tarfile.TarInfo(args.path)
                 tarinfo.size = len(content_bytes)
-                tarinfo.mode = 0o744
+                tarinfo.mode = 0o644
+                tarinfo.type = tarfile.REGTYPE
+
+                # Set directory/file type based on entry name. TODO: base on something else?
+                is_dir = args.path and args.path.endswith('/')
+                if is_dir:
+                    tarinfo.mode = 0o755
+                    tarinfo.type = tarfile.DIRTYPE
                 
                 # Apply attributes if specified
                 if args.mode is not None:
@@ -647,19 +654,20 @@ class TarHandler(BaseArchiveHandler):
                         print(f"{'-'*12} {'-'*15} {'-'*10} {'-'*20} {'-'*30}")
                     else:
                         print(f"Contents of {args.file}:")
-                
-                    # Sort members by name
-                    members.sort(key=lambda m: m.name)
                     
                     # Print members
-                    for member in members:                        
+                    for member in members:
+                        membername = f"{member.name}{'/' if member.isdir() else ''}"                  
                         if args.long:
                             # Format date and time
                             date_time = datetime.fromtimestamp(member.mtime)
                             date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
                             
                             # Format permissions
-                            perm_str = self.format_mode(member.mode)
+                            mode = member.mode
+                            if member.isdir():
+                                mode |= 0o040000
+                            perm_str = self.format_mode(mode)
                             
                             # Format owner/group
                             if member.uname and member.gname:
@@ -668,15 +676,14 @@ class TarHandler(BaseArchiveHandler):
                                 owner_str = f"{member.uid}/{member.gid}"
                             
                             # Handle symlinks
-                            name = member.name
                             if member.issym():
-                                name = f"{member.name} -> {member.linkname}"
+                                membername = f"{member.name} -> {member.linkname}"
                             elif member.islnk():
-                                name = f"{member.name} link to {member.linkname}"
+                                membername = f"{member.name} link to {member.linkname}"
                             
-                            print(f"{perm_str} {owner_str:<15} {member.size:>10} {date_str:>20} {name}")
+                            print(f"{perm_str} {owner_str:<15} {member.size:>10} {date_str:>20} {membername}")
                         else:
-                            print(f"{member.name}{'/' if member.isdir() else ''}")
+                            print(membername)
             
             # Very verbose --longlong listing with raw headers
             else:
@@ -730,8 +737,11 @@ class TarHandler(BaseArchiveHandler):
                 
                 # Print members
                 for member in members:
+                    membername = member.name
+                    if member.type == tarfile.DIRTYPE:
+                        membername = membername.rstrip('/') + '/'
                     # Skip other entries
-                    if not member.name == args.path:
+                    if not membername == args.path:
                         continue
                     # Skip other entries until requested index is reached
                     if not args.index == current_index:
