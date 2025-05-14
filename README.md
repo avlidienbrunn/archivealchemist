@@ -38,11 +38,11 @@ See [Documentation](docs/index.md)
 
 #### Suggested working directory setup
 
-The most convenient way to test multiple payloads/tests for an archive is to use a local working directory and the `add` command with `--content-directory` flag to "sync" the local directory to the archive:
+The most convenient way to test multiple payloads/tests for an archive is to use a local working directory and the `replace` command with `--content-directory` flag to "sync" the local directory to the archive:
 
 1. Extract into working directory: `./archive-alchemist.py target.zip extract -o workingdir/`
 2. Make changes to file(s) in `workingdir/`
-3. Build archive from working directory: `./archive-alchemist.py target_poc.zip add --content-directory workingdir/ ""`
+3. Build archive from working directory: `./archive-alchemist.py target_poc.zip replace --content-directory workingdir/ ""`
 4. Test using `target_poc.zip`
 5. GOTO #2
 
