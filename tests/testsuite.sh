@@ -1253,6 +1253,26 @@ run_test "ZIP UID/GID - Basic storage" \
    $ALCHEMIST test_uid_gid.zip list -ll | grep -q 'uid: 1234' && \
    $ALCHEMIST test_uid_gid.zip list -ll | grep -q 'gid: 1234'"
 
+run_test "TAR - Replace root of archive with --content-directory" \
+  "rm -f test_replace_dir_root.tar && \
+   $ALCHEMIST -v  test_replace_dir_root.tar add archive/file.txt --content 'Original content' && \
+   $ALCHEMIST -v  test_replace_dir_root.tar add archive/replaceme.txt --content 'Replace me' && \
+   mkdir -p test_replace_dir_root_tar_src && \
+   echo 'Replaced via directory' > test_replace_dir_root_tar_src/file.txt && \
+   $ALCHEMIST -v  test_replace_dir_root.tar replace archive/ --content-directory test_replace_dir_root_tar_src" \
+  "$ALCHEMIST test_replace_dir_root.tar cat archive/file.txt | grep -q 'Replaced via directory' && \
+   $ALCHEMIST test_replace_dir_root.tar list | grep -qv 'replaceme.txt'"
+
+run_test "ZIP - Replace root of archive with --content-directory" \
+  "rm -f test_replace_dir_root.zip && \
+   $ALCHEMIST -v  test_replace_dir_root.zip add archive/file.txt --content 'Original content' && \
+   $ALCHEMIST -v  test_replace_dir_root.zip add archive/replaceme.txt --content 'Replace me' && \
+   mkdir -p test_replace_dir_root_zip_src && \
+   echo 'Replaced via directory' > test_replace_dir_root_zip_src/file.txt && \
+   $ALCHEMIST -v  test_replace_dir_root.zip replace archive/ --content-directory test_replace_dir_root_zip_src" \
+  "$ALCHEMIST test_replace_dir_root.zip cat archive/file.txt | grep -q 'Replaced via directory' && \
+   $ALCHEMIST test_replace_dir_root.zip list | grep -qv 'replaceme.txt'"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then

@@ -583,7 +583,10 @@ class TarHandler(BaseArchiveHandler):
                 # Find all paths to remove (including directories)
                 paths_to_remove = []
                 for name in member_names:
-                    if name == args.path or (is_recursive and name.startswith(args.path.rstrip("/") + "/")):
+                    # Exact match = remove path
+                    # Recursive + empty path = remove ROOT/
+                    # Recursive + path = remove ROOT/path/
+                    if name == args.path or (is_recursive and args.path == "") or (is_recursive and name.startswith(args.path.rstrip("/") + "/")):
                         paths_to_remove.append(name)
                 
                 if not paths_to_remove:

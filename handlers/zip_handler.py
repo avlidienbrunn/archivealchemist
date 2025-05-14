@@ -769,7 +769,10 @@ class ZipHandler(BaseArchiveHandler):
                 # Check if the path exists in the archive
                 paths_to_remove = []
                 for entry in entries:
-                    if entry.filename == args.path or (is_recursive and entry.filename.startswith(args.path.rstrip("/") + "/")):
+                    # Exact match = remove path
+                    # Recursive + empty path = remove root
+                    # Recursive + path = remove path/
+                    if entry.filename == args.path or (is_recursive and args.path == "") or (is_recursive and entry.filename.startswith(args.path.rstrip("/") + "/")):
                         paths_to_remove.append(entry.filename)
                 
                 if not paths_to_remove:
