@@ -1274,7 +1274,7 @@ run_test "TAR - Ensure directories are added as DIRTYPE" \
    $ALCHEMIST -v  test_add_dir.tar add archive/replaceme.txt --content 'Replace me' && \
    mkdir -p test_add_dir_tar && \
    echo 'Replaced via directory' > test_add_dir_tar/file.txt && \
-   $ALCHEMIST -v  test_add_dir.tar replace archive/ --content-directory test_add_dir_tar" \
+   $ALCHEMIST -v  test_add_dir.tar replace archive/ --content-directory test_add_dir_tar --mode 775" \
   "$ALCHEMIST test_add_dir.tar list -ll | grep -q ' (directory))' && \
    $ALCHEMIST test_add_dir.tar list -l1 | grep -q 'drwxrwxr-x'"
 
