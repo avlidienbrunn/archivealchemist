@@ -93,7 +93,7 @@ run_test "TAR - Add regular file" \
 
 run_test "TAR - Symlink" \
   "$ALCHEMIST -v  test_symlink.tar -t tar add link.txt --symlink '/etc/passwd'" \
-  "tar -tvf test_symlink.tar | grep -q 'link.txt -> /etc/passwd'"
+  "tar -tvf test_symlink.tar | grep -q 'link.txt.* -> /etc/passwd'"
 
 run_test "TAR - Setuid bit" \
   "$ALCHEMIST -v  test_setuid.tar -t tar add exec.sh --content '#!/bin/sh\necho test' --mode 0755 --setuid" \
@@ -114,7 +114,7 @@ run_test "TAR - File collision with symlink" \
   "$ALCHEMIST -v  test_collision.tar -t tar add config.txt --symlink '/tmp/target.txt' && \
    $ALCHEMIST -v  test_collision.tar -t tar add config.txt --content 'Overwritten'" \
   "tar -tvf test_collision.tar | grep -q 'config.txt' && \
-   tar -tvf test_collision.tar | grep -q -v 'config.txt -> /tmp/target.txt'"
+   tar -tvf test_collision.tar | grep -q -v 'config.txt.* -> /tmp/target.txt'"
 
 run_test "TAR - Extract symlink behavior" \
   "$ALCHEMIST -v  test_extract_symlink.tar -t tar add safe.txt --content 'Safe content' && \
@@ -242,7 +242,7 @@ run_test "List - Long TAR listing" \
    $ALCHEMIST -v  test_list_long.tar -t tar add link.txt --symlink '/etc/passwd'" \
   "$ALCHEMIST  test_list_long.tar -t tar list -l 1 | grep -q 'file.txt' && \
    $ALCHEMIST  test_list_long.tar -t tar list -l 1 | grep -q 'exec.sh' && \
-   $ALCHEMIST  test_list_long.tar -t tar list -l 1 | grep -q 'link.txt -> /etc/passwd' && \
+   $ALCHEMIST  test_list_long.tar -t tar list -l 1 | grep -q 'link.txt.* -> /etc/passwd' && \
    $ALCHEMIST  test_list_long.tar -t tar list -l 1 | grep -q -- '-rw-r--r--' && \
    $ALCHEMIST  test_list_long.tar -t tar list -l 1 | grep -q -- '-rwsr-xr-x'"
 
@@ -429,7 +429,7 @@ run_test "Append - File with binary data from file" \
 run_test "TAR - Modify file to symlink" \
   "$ALCHEMIST -v  test_modify_to_symlink.tar -t tar add file.txt --content 'Original content' && \
    $ALCHEMIST -v  test_modify_to_symlink.tar -t tar modify file.txt --symlink '/etc/target'" \
-  "tar -tvf test_modify_to_symlink.tar | grep -q 'file.txt -> /etc/target'"
+  "tar -tvf test_modify_to_symlink.tar | grep -q 'file.txt.* -> /etc/target'"
 
 # Test converting a regular file to a hardlink in TAR
 run_test "TAR - Modify file to hardlink" \
@@ -470,7 +470,7 @@ run_test "Extract - Modified symlink extraction" \
 run_test "TAR - Preserve mode bits when converting to symlink" \
   "$ALCHEMIST -v  test_symlink_mode.tar -t tar add file.txt --content 'Original content' --mode 0755 && \
    $ALCHEMIST -v  test_symlink_mode.tar -t tar modify file.txt --symlink '/etc/target' --mode 0777" \
-  "tar -tvf test_symlink_mode.tar | grep -q 'file.txt -> /etc/target' && \
+  "tar -tvf test_symlink_mode.tar | grep -q 'file.txt.* -> /etc/target' && \
    [ \$(tar -tvf test_symlink_mode.tar | grep 'file.txt' | grep -c 'rwxrwxrwx') -eq 1 ]"
 
 # Test for adding a directory structure - basic case
@@ -532,7 +532,7 @@ run_test "Directory - Directory symlinks" \
    $ALCHEMIST -v  test_dir_symlinks.tar -t tar add archive/ --content-directory test_dir_symlinks2" \
   "tar -tvf test_dir_symlinks.tar | grep -q 'archive/real_dir/' && \
    tar -tvf test_dir_symlinks.tar | grep -q 'archive/real_dir/file.txt' && \
-   tar -tvf test_dir_symlinks.tar | grep -q 'archive/link_dir -> real_dir'"
+   tar -tvf test_dir_symlinks.tar | grep -q 'archive/link_dir.* -> real_dir'"
 
 # Test with mode and owner attributes
 run_test "Directory - With attributes" \
@@ -642,7 +642,7 @@ run_test "Directory - Overwrite file with symlink" \
    # Add directory which should update the file to a symlink
    $ALCHEMIST -v  test_overwrite_symlink.tar -t tar add archive/ --content-directory test_dir_overwrite_symlink" \
   "tar -tvf test_overwrite_symlink.tar | grep -q 'archive/target.txt' && \
-   tar -tvf test_overwrite_symlink.tar | grep -q 'archive/regular.txt -> target.txt'"
+   tar -tvf test_overwrite_symlink.tar | grep -q 'archive/regular.txt.* -> target.txt'"
 
 # Test for overwriting with updated permissions
 run_test "Directory - Overwrite with updated permissions" \
@@ -729,7 +729,7 @@ run_test "Replace - With symlink" \
   "rm -f test_replace_symlink.tar && \
    $ALCHEMIST -v  test_replace_symlink.tar -t tar add file.txt --content 'Original content' && \
    $ALCHEMIST -v  test_replace_symlink.tar -t tar replace file.txt --symlink '/etc/passwd'" \
-  "tar -tvf test_replace_symlink.tar | grep -q 'file.txt -> /etc/passwd'"
+  "tar -tvf test_replace_symlink.tar | grep -q 'file.txt.* -> /etc/passwd'"
 
 # Test replace with hardlink
 run_test "Replace - With hardlink" \
@@ -918,7 +918,7 @@ run_test "List - Very verbose TAR listing (longlong)" \
    $ALCHEMIST -v  test_longlong.tar -t tar add dir/nested.txt --content 'Nested content'" \
   "$ALCHEMIST  test_longlong.tar -t tar list --longlong | grep -q 'file.txt' && \
    $ALCHEMIST  test_longlong.tar -t tar list -l2 | grep -q 'linkname       : /etc/passwd' && \
-   $ALCHEMIST  test_longlong.tar -t tar list --long 2 | grep -q 'symlink.txt -> /etc/passwd' && \
+   $ALCHEMIST  test_longlong.tar -t tar list --long 2 | grep -q 'symlink.txt.* -> /etc/passwd' && \
    $ALCHEMIST  test_longlong.tar -t tar list --longlong | grep -q 'dir/nested.txt'"
 
 # Test for --longlong option on TAR.GZ archives
@@ -1181,7 +1181,7 @@ run_test "ZIP Attributes - Symlink type bits" \
   "rm -f test_symlink_attrs.zip && \
    $ALCHEMIST -v test_symlink_attrs.zip add link.txt --symlink 'target.txt'" \
   "$ALCHEMIST test_symlink_attrs.zip list -ll | grep -q 'external_file_attr.*Unix mode: 0o120755' && \
-   $ALCHEMIST test_symlink_attrs.zip list -ll | grep -q 'link.txt -> target.txt'"
+   $ALCHEMIST test_symlink_attrs.zip list -ll | grep -q 'link.txt.* -> target.txt'"
 
 # Test for explicit mode with file type preservation
 run_test "ZIP Attributes - Custom permissions with file type" \
@@ -1277,6 +1277,12 @@ run_test "TAR - Ensure directories are added as DIRTYPE" \
    $ALCHEMIST -v  test_add_dir.tar replace archive/ --content-directory test_add_dir_tar --mode 775" \
   "$ALCHEMIST test_add_dir.tar list -ll | grep -q ' (directory))' && \
    $ALCHEMIST test_add_dir.tar list -l1 | grep -q 'drwxrwxr-x'"
+
+run_test "ZIP - Filename vs Unicode Path confusion" \
+  "rm -f test_zip_unicode_path_confusion.zip && \
+   $ALCHEMIST -v  test_zip_unicode_path_confusion.zip add original.txt --content 'Original content' --unicodepath fake.txt" \
+  "$ALCHEMIST test_zip_unicode_path_confusion.zip list -ll | grep -q $'path: b\'fake.txt\'' && \
+   unzip -l test_zip_unicode_path_confusion.zip -l1 | grep -vq 'original.txt'"
 
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"

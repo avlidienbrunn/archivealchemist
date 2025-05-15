@@ -9,6 +9,7 @@ from datetime import datetime
 from handlers.base_handler import BaseArchiveHandler
 import warnings
 import sys
+import binascii
 
 warnings.filterwarnings("ignore", category=UserWarning, module="zipfile", message="Duplicate name:.*")
 
@@ -50,16 +51,20 @@ class ZipHandler(BaseArchiveHandler):
                 result['UT_timestamp'] = self._parse_ut_timestamp(header_data)
             elif header_id == 0x7875:  # ux - Unix UID/GID
                 result['ux_uid_gid'] = self._parse_ux_uid_gid(header_data)
-            elif header_id == 0x000A:  # NTFS
-                result['NTFS'] = self._parse_ntfs_extra(header_data)
-            elif header_id == 0x5855:  # Info-ZIP Unix
-                result['Info-ZIP_Unix'] = self._parse_infozip_unix(header_data)
+            elif header_id == 0x7075:  # Info-ZIP Unicode Path
+                key = 'Unicode_Path'
+                if key in result:
+                    # To be able to display multiple fields with the same ID
+                    key = key + str(binascii.crc32(header_data))
+                result[key] = self._parse_unicode_path(header_data)
             else:
                 result[f'header_0x{header_id:04x}'] = header_data.hex()
             
             pos += 4 + data_size
         
         return result
+
+
 
     def _parse_eocd_record(self, data):
         """Parse the End of Central Directory record."""
@@ -78,6 +83,20 @@ class ZipHandler(BaseArchiveHandler):
         }
         
         return fields
+
+    def _parse_unicode_path(self, data):
+        """Parse the Info-Zip Unicode Path extra field."""
+        result = {}
+        
+        if len(data) >= 1:
+            version = data[0]
+            result['version'] = version
+        if len(data) >= 5 and version == 1:
+            unicodepath_crc32 = data[1:5]
+            unicodepath = data[5:]
+            result['path'] = unicodepath
+        
+        return result
 
     def _parse_ut_timestamp(self, data):
         """Parse the UT (extended timestamp) extra field."""
@@ -207,7 +226,7 @@ class ZipHandler(BaseArchiveHandler):
         }
         return compression_types.get(compress_type, f"unknown ({compress_type})")
 
-    def _set_file_permissions(self, info, mode=None, is_dir=False, is_symlink=False, preserve_type=False, orig_attr=None, uid=None, gid=None):
+    def _set_file_permissions(self, info, mode=None, is_dir=False, is_symlink=False, preserve_type=False, orig_attr=None, uid=None, gid=None, override_unicode_path=None):
         """Set file permissions and type for a ZipInfo object."""
         # Define file type constants
         S_IFREG = 0o100000  # Regular file
@@ -258,7 +277,78 @@ class ZipHandler(BaseArchiveHandler):
             # Add the "Info-ZIP Unix Extra Field (type 3)" for UID/GID
             self._add_uid_gid_extra_field(info, uid, gid)
         
+        # Add the "Info-ZIP Unix Extra Field (type 3)" for Unicode Path
+        # TODO: break out from this function? Always set this?
+        if override_unicode_path != None:
+            self._add_unicode_path_extra_field(info, info.filename, override_unicode_path)
+        
         return info
+
+    def _add_unicode_path_extra_field(self, info, path, override_path=None):
+        """Add Unicode Path to ZipInfo extra field using Info-ZIP Unix format.
+        
+        This uses the "Info-ZIP Unix Extra Field (type 3)" format with header ID 0x7075.
+        
+        Args:
+            info: The ZipInfo object to modify
+            path: The unicode version of the entry path
+        """
+        # Info-ZIP Unix Extra Field (type 3) header ID
+        HEADER_ID = 0x7075
+        
+        # Current extra data (preserve any existing fields)
+        extra_data = info.extra if hasattr(info, 'extra') and info.extra else b''
+        
+        # Remove any existing Unicode Path fields (to avoid duplicates)
+        pos = 0
+        new_extra = bytearray()
+        
+        while pos + 4 <= len(extra_data):
+            header_id = int.from_bytes(extra_data[pos:pos+2], byteorder='little')
+            data_size = int.from_bytes(extra_data[pos+2:pos+4], byteorder='little')
+            
+            # Skip over existing Unix UID/GID field if present
+            if header_id == HEADER_ID:
+                pos += 4 + data_size
+                continue
+            
+            # Copy other fields
+            field_size = 4 + data_size
+            new_extra.extend(extra_data[pos:pos+field_size])
+            pos += field_size
+        
+        # Format: Version(1) + Size(1) + NameCRC32 + UnicodeName
+        # Version is always 1 in this implementation
+        version = 1
+        
+        # Determine minimum bytes needed for UID and GID
+        path_bytes = self.get_raw_bytes(path)
+        path_unicode = path_bytes
+
+        # Allow overriding Unicode Path (to test file.txt in LFH vs ../../../file.txt in Unicode Path)
+        if override_path != None:
+            path_unicode = self.get_raw_bytes(override_path)
+        
+        # CRC32 of path
+        path_crc32 = binascii.crc32(path_bytes)
+        
+        # Create the field data
+        field_data = bytearray()
+        field_data.append(version)  # Version
+        field_data.extend(path_crc32.to_bytes(4, byteorder='little'))  # NameCRC32
+        field_data.extend(path_unicode)  # UnicodeName
+        
+        # Create the header (ID + size + data)
+        header = bytearray()
+        header.extend(HEADER_ID.to_bytes(2, byteorder='little'))  # Header ID
+        header.extend(len(field_data).to_bytes(2, byteorder='little'))  # Data size
+        header.extend(field_data)  # Field data
+        
+        # Append the new field to the extra data
+        new_extra.extend(header)
+        
+        # Update the ZipInfo extra field
+        info.extra = bytes(new_extra)
 
     def _add_uid_gid_extra_field(self, info, uid, gid):
         """Add UID/GID to ZipInfo extra field using Info-ZIP Unix format.
@@ -429,7 +519,8 @@ class ZipHandler(BaseArchiveHandler):
                     'hardlink': args.hardlink if hasattr(args, 'hardlink') else None,
                     'setuid': args.setuid if hasattr(args, 'setuid') else False,
                     'setgid': args.setgid if hasattr(args, 'setgid') else False,
-                    'sticky': args.sticky if hasattr(args, 'sticky') else False
+                    'sticky': args.sticky if hasattr(args, 'sticky') else False,
+                    'unicodepath': args.unicodepath if hasattr(args, 'unicodepath') else None
                 })
                 
                 return self.replace(replace_args)
@@ -447,7 +538,8 @@ class ZipHandler(BaseArchiveHandler):
                     mode=args.mode, 
                     is_symlink=True,
                     uid=args.uid if hasattr(args, 'uid') else None,
-                    gid=args.gid if hasattr(args, 'gid') else None
+                    gid=args.gid if hasattr(args, 'gid') else None,
+                    override_unicode_path=args.unicodepath if hasattr(args, 'unicodepath') else None
                 )
                 
                 # Set modification time if specified
@@ -475,7 +567,8 @@ class ZipHandler(BaseArchiveHandler):
                     mode=args.mode, 
                     is_dir=False,
                     uid=args.uid if hasattr(args, 'uid') else None,
-                    gid=args.gid if hasattr(args, 'gid') else None
+                    gid=args.gid if hasattr(args, 'gid') else None,
+                    override_unicode_path=args.unicodepath if hasattr(args, 'unicodepath') else None
                 )
                 
                 # Set modification time if specified
@@ -500,7 +593,8 @@ class ZipHandler(BaseArchiveHandler):
                     mode=args.mode, 
                     is_dir=is_dir,
                     uid=args.uid if hasattr(args, 'uid') else None,
-                    gid=args.gid if hasattr(args, 'gid') else None
+                    gid=args.gid if hasattr(args, 'gid') else None,
+                    override_unicode_path=args.unicodepath if hasattr(args, 'unicodepath') else None
                 )
                 
                 # Set modification time if specified
@@ -520,7 +614,8 @@ class ZipHandler(BaseArchiveHandler):
                         mode=mode, 
                         is_dir=is_dir,
                         uid=args.uid if hasattr(args, 'uid') else None,
-                        gid=args.gid if hasattr(args, 'gid') else None
+                        gid=args.gid if hasattr(args, 'gid') else None,
+                        override_unicode_path=args.unicodepath if hasattr(args, 'unicodepath') else None
                     )
                 
                 # Get content from either --content or --content-file
@@ -659,7 +754,8 @@ class ZipHandler(BaseArchiveHandler):
                         mode=args.mode, 
                         is_symlink=True,
                         uid=args.uid if hasattr(args, 'uid') else None,
-                        gid=args.gid if hasattr(args, 'gid') else None
+                        gid=args.gid if hasattr(args, 'gid') else None,
+                        override_unicode_path=args.unicodepath if hasattr(args, 'unicodepath') else None
                     )
                     
                     # Set symlink target as the file content
@@ -683,7 +779,8 @@ class ZipHandler(BaseArchiveHandler):
                         preserve_type=True, 
                         orig_attr=orig_info.external_attr,
                         uid=args.uid if hasattr(args, 'uid') else None,
-                        gid=args.gid if hasattr(args, 'gid') else None
+                        gid=args.gid if hasattr(args, 'gid') else None,
+                        override_unicode_path=args.unicodepath if hasattr(args, 'unicodepath') else None
                     )
                     
                     # Set special bits if requested
@@ -699,7 +796,8 @@ class ZipHandler(BaseArchiveHandler):
                             preserve_type=True, 
                             orig_attr=orig_info.external_attr,
                             uid=args.uid if hasattr(args, 'uid') else None,
-                            gid=args.gid if hasattr(args, 'gid') else None
+                            gid=args.gid if hasattr(args, 'gid') else None,
+                            override_unicode_path=args.unicodepath if hasattr(args, 'unicodepath') else None
                         )
                     
                     # Add the file with hardlink target as content
@@ -717,7 +815,8 @@ class ZipHandler(BaseArchiveHandler):
                         preserve_type=True, 
                         orig_attr=orig_info.external_attr,
                         uid=args.uid if hasattr(args, 'uid') else None,
-                        gid=args.gid if hasattr(args, 'gid') else None
+                        gid=args.gid if hasattr(args, 'gid') else None,
+                        override_unicode_path=args.unicodepath if hasattr(args, 'unicodepath') else None
                     )
                     
                     # Set special bits if requested
@@ -733,7 +832,8 @@ class ZipHandler(BaseArchiveHandler):
                             preserve_type=True, 
                             orig_attr=orig_info.external_attr,
                             uid=args.uid if hasattr(args, 'uid') else None,
-                            gid=args.gid if hasattr(args, 'gid') else None
+                            gid=args.gid if hasattr(args, 'gid') else None,
+                            override_unicode_path=args.unicodepath if hasattr(args, 'unicodepath') else None
                         )
                     
                     # Add the modified entry with original content
@@ -805,6 +905,144 @@ class ZipHandler(BaseArchiveHandler):
         except zipfile.BadZipFile:
             print(f"Error: {args.file} is not a valid ZIP file")
 
+    def _list_long(self, args):
+        print(f"Verbose header information for {args.file}:")
+        
+        # First find the End of Central Directory (EOCD) record
+        with open(args.file, 'rb') as raw_file:
+            # Go to the end of the file and search backward for the EOCD signature
+            raw_file.seek(0, 2)  # Seek to the end
+            file_size = raw_file.tell()
+            
+            # Find the EOCD record (search backwards from the end)
+            eocd_offset = None
+            max_search = min(file_size, 65536)  # ZIP spec allows comment up to 65535 bytes
+            for i in range(max_search):
+                raw_file.seek(file_size - 22 - i)  # EOCD is at least 22 bytes
+                if raw_file.read(4) == b'PK\x05\x06':  # EOCD signature
+                    eocd_offset = file_size - 22 - i
+                    break
+            
+            if eocd_offset is None:
+                print("Error: Could not find End of Central Directory record")
+                return
+            
+            # Read the EOCD record
+            raw_file.seek(eocd_offset)
+            eocd_data = raw_file.read(22)
+            eocd_fields = self._parse_eocd_record(eocd_data)
+            
+            # Get the offset to the start of the central directory
+            cd_offset = eocd_fields.get('cd_offset')
+            cd_entries = eocd_fields.get('cd_entries')
+            
+            if cd_offset is None or cd_entries is None:
+                print("Error: Invalid End of Central Directory record")
+                return
+            
+            # Find central directory headers
+            cd_headers = []
+            raw_file.seek(cd_offset)
+            
+            for _ in range(cd_entries):
+                pos = raw_file.tell()
+                if raw_file.read(4) != b'PK\x01\x02':  # CDH signature
+                    print(f"Warning: Expected Central Directory Header at {pos}")
+                    continue
+                
+                raw_file.seek(pos)
+                cdh_data = raw_file.read(46)  # Fixed part of CDH
+                cdh_fields = self._parse_central_directory_header(cdh_data)
+                
+                filename_length = cdh_fields.get('filename_length', 0)
+                extra_length = cdh_fields.get('extra_field_length', 0)
+                comment_length = cdh_fields.get('comment_length', 0)
+                
+                # Read variable-length fields
+                if filename_length > 0:
+                    cdh_fields['filename'] = raw_file.read(filename_length).decode('utf-8', errors='replace')
+                
+                if extra_length > 0:
+                    cdh_fields['extra'] = raw_file.read(extra_length)
+                    # Parse the extra field
+                    cdh_fields['extra_parsed'] = self._parse_extra_field(cdh_fields['extra'])
+                
+                if comment_length > 0:
+                    cdh_fields['comment'] = raw_file.read(comment_length).decode('utf-8', errors='replace')
+                
+                # Store with offset and size
+                cd_headers.append({
+                    'offset': pos,
+                    'size': 46 + filename_length + extra_length + comment_length,
+                    'fields': cdh_fields
+                })
+            
+            # Process each entry
+            for header in cd_headers:
+                entry = header['fields']
+                print(f"\nFile: {entry['filename']}")
+                print(f"{'-'*70}")
+                
+                # Find matching CDH by LFH offset
+                matching_cdh = None
+                for cdh in cd_headers:
+                    if cdh['fields'].get('local_header_offset') == entry['local_header_offset']:
+                        matching_cdh = cdh
+                        break
+                # If failed (for some reason), try fallback via filename
+                if matching_cdh == None:
+                    for cdh in cd_headers:
+                        if cdh['fields'].get('filename') == entry['filename']:
+                            matching_cdh = cdh
+                            break
+                # Couldnt find CDH entry match by LFH offset or filename
+                if matching_cdh == None:
+                    print(f"Warning: failed to find central directory header for {entry['filename']}")
+
+                # Display LFH (using header_offset which points to LFH)
+                raw_file.seek(entry['local_header_offset'])
+                if raw_file.read(4) == b'PK\x03\x04':  # Verify LFH signature
+                    raw_file.seek(entry['local_header_offset'])
+                    lfh_data = raw_file.read(30)  # Fixed part of LFH
+                    lfh_fields = self._parse_local_file_header(lfh_data)
+                    
+                    filename_length = lfh_fields.get('filename_length', 0)
+                    extra_length = lfh_fields.get('extra_field_length', 0)
+                    
+                    # Read variable-length fields
+                    if filename_length > 0:
+                        lfh_fields['filename'] = raw_file.read(filename_length).decode('utf-8', errors='replace')
+                    
+                    if extra_length > 0:
+                        lfh_fields['extra'] = raw_file.read(extra_length)
+                        # Parse the extra field
+                        lfh_fields['extra_parsed'] = self._parse_extra_field(lfh_fields['extra'])
+                    
+                    print(f"\n  Local File Header (offset: {entry['local_header_offset']}):")
+                    self._display_zip_header_fields(lfh_fields)
+                
+                # Display matching CDH if found
+                if matching_cdh:
+                    print(f"\n  Central Directory Header (offset: {matching_cdh['offset']}):")
+                    self._display_zip_header_fields(matching_cdh['fields'])
+                    
+                    # Compare important fields between CDH and LFH
+                    if 'fields' in matching_cdh and lfh_fields:
+                        print("\n  Header Field Comparison (CDH vs LFH):")
+                        fields_to_compare = [
+                            'version_needed', 'flags', 'compression_method',
+                            'last_mod_time', 'last_mod_date', 'crc_32',
+                            'compressed_size', 'uncompressed_size', 'filename'
+                        ]
+                        
+                        for field in fields_to_compare:
+                            if field in matching_cdh['fields'] and field in lfh_fields:
+                                match = matching_cdh['fields'][field] == lfh_fields[field]
+                                status = "MATCH" if match else "MISMATCH"
+                                print(f"    {field:<20}: {status} - CDH: {matching_cdh['fields'][field]}, LFH: {lfh_fields[field]}")
+                
+                print(f"{'-'*70}")
+
     def list(self, args):
         """List the contents of the ZIP archive."""
         if not os.path.exists(args.file):
@@ -812,6 +1050,9 @@ class ZipHandler(BaseArchiveHandler):
             return
         
         try:
+            # Very verbose listing with all header information
+            if hasattr(args, 'longlong') and args.longlong or args.long == 2:
+                self._list_long(args)
             with zipfile.ZipFile(args.file, "r") as zip_file:
                 entries = zip_file.infolist()
                 
@@ -819,144 +1060,7 @@ class ZipHandler(BaseArchiveHandler):
                     print(f"Archive {args.file} is empty")
                     return
                 
-                # Very verbose listing with all header information
-                if hasattr(args, 'longlong') and args.longlong or args.long == 2:
-                    print(f"Verbose header information for {args.file}:")
-                    
-                    # First find the End of Central Directory (EOCD) record
-                    with open(args.file, 'rb') as raw_file:
-                        # Go to the end of the file and search backward for the EOCD signature
-                        raw_file.seek(0, 2)  # Seek to the end
-                        file_size = raw_file.tell()
-                        
-                        # Find the EOCD record (search backwards from the end)
-                        eocd_offset = None
-                        max_search = min(file_size, 65536)  # ZIP spec allows comment up to 65535 bytes
-                        for i in range(max_search):
-                            raw_file.seek(file_size - 22 - i)  # EOCD is at least 22 bytes
-                            if raw_file.read(4) == b'PK\x05\x06':  # EOCD signature
-                                eocd_offset = file_size - 22 - i
-                                break
-                        
-                        if eocd_offset is None:
-                            print("Error: Could not find End of Central Directory record")
-                            return
-                        
-                        # Read the EOCD record
-                        raw_file.seek(eocd_offset)
-                        eocd_data = raw_file.read(22)
-                        eocd_fields = self._parse_eocd_record(eocd_data)
-                        
-                        # Get the offset to the start of the central directory
-                        cd_offset = eocd_fields.get('cd_offset')
-                        cd_entries = eocd_fields.get('cd_entries')
-                        
-                        if cd_offset is None or cd_entries is None:
-                            print("Error: Invalid End of Central Directory record")
-                            return
-                        
-                        # Find central directory headers
-                        cd_headers = []
-                        raw_file.seek(cd_offset)
-                        
-                        for _ in range(cd_entries):
-                            pos = raw_file.tell()
-                            if raw_file.read(4) != b'PK\x01\x02':  # CDH signature
-                                print(f"Warning: Expected Central Directory Header at {pos}")
-                                continue
-                            
-                            raw_file.seek(pos)
-                            cdh_data = raw_file.read(46)  # Fixed part of CDH
-                            cdh_fields = self._parse_central_directory_header(cdh_data)
-                            
-                            filename_length = cdh_fields.get('filename_length', 0)
-                            extra_length = cdh_fields.get('extra_field_length', 0)
-                            comment_length = cdh_fields.get('comment_length', 0)
-                            
-                            # Read variable-length fields
-                            if filename_length > 0:
-                                cdh_fields['filename'] = raw_file.read(filename_length).decode('utf-8', errors='replace')
-                            
-                            if extra_length > 0:
-                                cdh_fields['extra'] = raw_file.read(extra_length)
-                                # Parse the extra field
-                                cdh_fields['extra_parsed'] = self._parse_extra_field(cdh_fields['extra'])
-                            
-                            if comment_length > 0:
-                                cdh_fields['comment'] = raw_file.read(comment_length).decode('utf-8', errors='replace')
-                            
-                            # Store with offset and size
-                            cd_headers.append({
-                                'offset': pos,
-                                'size': 46 + filename_length + extra_length + comment_length,
-                                'fields': cdh_fields
-                            })
-                        
-                        # Process each entry
-                        for entry in entries:
-                            print(f"\nFile: {entry.filename}")
-                            print(f"{'-'*70}")
-                            
-                            # Find matching CDH by LFH offset
-                            matching_cdh = None
-                            for cdh in cd_headers:
-                                if cdh['fields'].get('local_header_offset') == entry.header_offset:
-                                    matching_cdh = cdh
-                                    break
-                            # If failed (for some reason), try fallback via filename
-                            if matching_cdh == None:
-                                for cdh in cd_headers:
-                                    if cdh['fields'].get('filename') == entry.filename:
-                                        matching_cdh = cdh
-                                        break
-                            # Couldnt find CDH entry match by LFH offset or filename
-                            if matching_cdh == None:
-                                print(f"Warning: failed to find central directory header for {entry.filename}")
-
-                            # Display LFH (using header_offset which points to LFH)
-                            raw_file.seek(entry.header_offset)
-                            if raw_file.read(4) == b'PK\x03\x04':  # Verify LFH signature
-                                raw_file.seek(entry.header_offset)
-                                lfh_data = raw_file.read(30)  # Fixed part of LFH
-                                lfh_fields = self._parse_local_file_header(lfh_data)
-                                
-                                filename_length = lfh_fields.get('filename_length', 0)
-                                extra_length = lfh_fields.get('extra_field_length', 0)
-                                
-                                # Read variable-length fields
-                                if filename_length > 0:
-                                    lfh_fields['filename'] = raw_file.read(filename_length).decode('utf-8', errors='replace')
-                                
-                                if extra_length > 0:
-                                    lfh_fields['extra'] = raw_file.read(extra_length)
-                                    # Parse the extra field
-                                    lfh_fields['extra_parsed'] = self._parse_extra_field(lfh_fields['extra'])
-                                
-                                print(f"\n  Local File Header (offset: {entry.header_offset}):")
-                                self._display_zip_header_fields(lfh_fields)
-                            
-                            # Display matching CDH if found
-                            if matching_cdh:
-                                print(f"\n  Central Directory Header (offset: {matching_cdh['offset']}):")
-                                self._display_zip_header_fields(matching_cdh['fields'])
-                                
-                                # Compare important fields between CDH and LFH
-                                if 'fields' in matching_cdh and lfh_fields:
-                                    print("\n  Header Field Comparison (CDH vs LFH):")
-                                    fields_to_compare = [
-                                        'version_needed', 'flags', 'compression_method',
-                                        'last_mod_time', 'last_mod_date', 'crc_32',
-                                        'compressed_size', 'uncompressed_size', 'filename'
-                                    ]
-                                    
-                                    for field in fields_to_compare:
-                                        if field in matching_cdh['fields'] and field in lfh_fields:
-                                            match = matching_cdh['fields'][field] == lfh_fields[field]
-                                            status = "MATCH" if match else "MISMATCH"
-                                            print(f"    {field:<20}: {status} - CDH: {matching_cdh['fields'][field]}, LFH: {lfh_fields[field]}")
-                            
-                            print(f"{'-'*70}")
-                elif args.long:
+                if args.long:
                     print(f"{'Permissions':<12} {'Size':>10} {'Modified':>20} {'Name'}")
                     print(f"{'-'*12} {'-'*10} {'-'*20} {'-'*30}")
                 else:
@@ -981,12 +1085,18 @@ class ZipHandler(BaseArchiveHandler):
                         # Check if it's a symlink by looking at file mode
                         is_symlink = mode & 0o170000 == 0o120000
                         name = entry.filename
+
+                        # Display Unicode Path if provided in extra fields                        
+                        if entry.extra:
+                            extra_parsed = self._parse_extra_field(entry.extra)
+                            if 'Unicode_Path' in extra_parsed:
+                                name = f"{name} (unicode: {extra_parsed['Unicode_Path']['path']})"
                         
-                        # If it's a symlink, try to get target
+                        # If it's a symlink, display target
                         if is_symlink:
                             try:
                                 target = zip_file.read(entry).decode('utf-8')
-                                name = f"{entry.filename} -> {target}"
+                                name = f"{name} -> {target}"
                             except Exception as e:
                                 pass
                         

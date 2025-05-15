@@ -205,7 +205,8 @@ class BaseArchiveHandler(ABC):
                         'mtime': args.mtime if hasattr(args, 'mtime') else None,
                         'setuid': args.setuid if hasattr(args, 'setuid') else False,
                         'setgid': args.setgid if hasattr(args, 'setgid') else False,
-                        'sticky': args.sticky if hasattr(args, 'sticky') else False
+                        'sticky': args.sticky if hasattr(args, 'sticky') else False,
+                        'unicodepath': args.unicodepath if hasattr(args, 'unicodepath') else None
                     })
                     
                     # Add the directory entry
@@ -245,7 +246,8 @@ class BaseArchiveHandler(ABC):
                 'mtime': args.mtime if hasattr(args, 'mtime') else None,
                 'setuid': args.setuid if hasattr(args, 'setuid') else False,
                 'setgid': args.setgid if hasattr(args, 'setgid') else False,
-                'sticky': args.sticky if hasattr(args, 'sticky') else False
+                'sticky': args.sticky if hasattr(args, 'sticky') else False,
+                'unicodepath': args.unicodepath if hasattr(args, 'unicodepath') else None
             })
             
             # Add the directory entry
@@ -298,7 +300,8 @@ class BaseArchiveHandler(ABC):
                         'setuid': args.setuid if hasattr(args, 'setuid') else False,
                         'setgid': args.setgid if hasattr(args, 'setgid') else False,
                         'sticky': args.sticky if hasattr(args, 'sticky') else False,
-                        'verbose': args.verbose
+                        'verbose': args.verbose,
+                        'unicodepath': args.unicodepath if hasattr(args, 'unicodepath') else None
                     })
                     
                     self.add(symlink_args)
@@ -334,7 +337,8 @@ class BaseArchiveHandler(ABC):
                         'setuid': args.setuid if hasattr(args, 'setuid') else False,
                         'setgid': args.setgid if hasattr(args, 'setgid') else False,
                         'sticky': args.sticky if hasattr(args, 'sticky') else False,
-                        'verbose': args.verbose
+                        'verbose': args.verbose,
+                        'unicodepath': args.unicodepath if hasattr(args, 'unicodepath') else None
                     })
                     
                     self.add(symlink_args)
@@ -360,7 +364,8 @@ class BaseArchiveHandler(ABC):
                         'setuid': args.setuid if hasattr(args, 'setuid') else False,
                         'setgid': args.setgid if hasattr(args, 'setgid') else False,
                         'sticky': args.sticky if hasattr(args, 'sticky') else False,
-                        'verbose': args.verbose
+                        'verbose': args.verbose,
+                        'unicodepath': args.unicodepath if hasattr(args, 'unicodepath') else None
                     })
                     
                     self.add(file_args)

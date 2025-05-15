@@ -557,7 +557,7 @@ class TarHandler(BaseArchiveHandler):
                 if not args.symlink and not args.hardlink and orig_member.isfile():
                     tar_out.addfile(tarinfo, file_data)
                 else:
-                    tar_out.addfile(tarinfo)
+                    tar_out.addfile(tarinfo, 'test')
             
             # Replace the original file
             os.remove(args.file)

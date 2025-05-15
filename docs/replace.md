@@ -27,6 +27,7 @@ The `replace` command replaces existing files or directories in an archive with 
 | `--setuid` | Set the setuid bit | False | `--setuid` |
 | `--setgid` | Set the setgid bit | False | `--setgid` |
 | `--sticky` | Set the sticky bit | False | `--sticky` |
+| `--unicodepath` | Set the unicode path (ZIP only) | None | `--unicodepath something.txt` |
 
 **Note**: You can specify only one of `--content`, `--content-file`, `--content-directory`, `--symlink`, or `--hardlink`.
 

@@ -108,3 +108,10 @@ I havent really come up with a good generic way to test for this, but you could 
 ./archive-alchemist.py polyglot.gif add payload.txt --content "hello there"
 ./archive-alchemist.py polyglot.gif polyglot --content "GIF89aI am totally a GIF file"
 ```
+
+#### Unicode Path vs file name confusion
+
+```bash
+# Create a zip that has file.txt in local file header and notfile.txt in Unicode Path extra field
+./archive-alchemist.py weird.zip add file.txt --content "hello there" --unicodepath notfile.txt
+```

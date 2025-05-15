@@ -24,6 +24,7 @@ The `modify` command changes file attributes or converts files to symlinks/hardl
 | `--sticky` | Set the sticky bit | False | `--sticky` |
 | `--symlink` | Convert file to a symlink pointing to this target | None | `--symlink "/etc/passwd"` |
 | `--hardlink` | Convert file to a hardlink pointing to this target | None | `--hardlink "target.txt"` |
+| `--unicodepath` | Set the unicode path (ZIP only) | None | `--unicodepath something.txt` |
 
 **Note**: At least one option must be specified to modify the file.
 

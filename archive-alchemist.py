@@ -146,6 +146,7 @@ class ArchiveAlchemist:
         add_parser.add_argument("--setuid", action="store_true", help="Set the setuid bit")
         add_parser.add_argument("--setgid", action="store_true", help="Set the setgid bit")
         add_parser.add_argument("--sticky", action="store_true", help="Set the sticky bit")
+        add_parser.add_argument("--unicodepath", help="Set the ZIP Unicode Path field")
         
         # Replace command
         replace_parser = subparsers.add_parser("replace", help="Replace files in the archive")
@@ -164,6 +165,7 @@ class ArchiveAlchemist:
         replace_parser.add_argument("--setuid", action="store_true", help="Set the setuid bit")
         replace_parser.add_argument("--setgid", action="store_true", help="Set the setgid bit")
         replace_parser.add_argument("--sticky", action="store_true", help="Set the sticky bit")
+        replace_parser.add_argument("--unicodepath", help="Set the ZIP Unicode Path field")
         
         # Append command
         append_parser = subparsers.add_parser("append", help="Append to files in the archive")
@@ -185,6 +187,7 @@ class ArchiveAlchemist:
         modify_parser.add_argument("--sticky", action="store_true", help="Set the sticky bit")
         modify_parser.add_argument("--symlink", help="Convert file to a symlink pointing to this target")
         modify_parser.add_argument("--hardlink", help="Convert file to a hardlink pointing to this target")
+        modify_parser.add_argument("--unicodepath", help="Set the ZIP Unicode Path field")
 
 
         # Remove command
@@ -247,6 +250,10 @@ class ArchiveAlchemist:
                 print(f"Auto-detected archive type: {args.type}")
         
         handler = self._get_handler(args)
+
+        if args.type != 'zip' and getattr(args, 'unicodepath', None):
+            print(f"Error: --unicodepath can only be used in zip (provided type: {args.type})")
+            exit()
         
         if args.command == "add":
             if getattr(args, 'content_directory', None):

@@ -4,6 +4,8 @@
 
 The `list` (or the alias, `ls`) command displays the contents of an archive, showing all files, directories, symlinks, and hardlinks. It can show either a simple list of filenames or a detailed view with file attributes, similar to `ls -l` in Unix/Linux.
 
+**NOTE**: Some zip utilities (such as unzip/zipinfo) will use the Unicode Path extra field for entry name/path. Archive Alchemist `-l1` (default) and `-l2` will display entry filename *and* this field. 
+
 ## Syntax
 
 ```bash
@@ -38,6 +40,7 @@ Permissions  Size       Modified             Name
 -rw-r--r--   12345      2023-06-15 10:30:45  file.txt
 drwxr-xr-x   0          2023-06-15 10:30:00  directory/
 lrwxrwxrwx   0          2023-06-15 10:31:15  link.txt -> target.txt
+-rw-r--r--   12         2023-06-15 10:31:17  text.txt (unicode: text.txt)
 ```
 
 For TAR archives, the detailed output includes:
