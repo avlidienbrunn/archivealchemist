@@ -5,6 +5,7 @@ Implements the BaseArchiveHandler interface for ZIP archives.
 
 import os
 import zipfile
+from handlers.extended_zipfile import ExtendedZipFile
 from datetime import datetime
 from handlers.base_handler import BaseArchiveHandler
 import warnings
@@ -22,11 +23,11 @@ class ZipHandler(BaseArchiveHandler):
     
     def _create_new_archive(self, file_path):
         """Create a new ZIP archive."""
-        return zipfile.ZipFile(file_path, "w")
+        return ExtendedZipFile(file_path, "w")
     
     def _open_existing_archive(self, file_path, mode="a"):
         """Open an existing ZIP archive."""
-        return zipfile.ZipFile(file_path, mode)
+        return ExtendedZipFile(file_path, mode)
     
     def _parse_extra_field(self, extra_data):
         """Parse the extra field data in ZIP headers."""
@@ -63,26 +64,6 @@ class ZipHandler(BaseArchiveHandler):
             pos += 4 + data_size
         
         return result
-
-
-
-    def _parse_eocd_record(self, data):
-        """Parse the End of Central Directory record."""
-        if len(data) < 22:
-            return {'error': 'Data too short for EOCD record'}
-        
-        fields = {
-            'signature': data[0:4].hex(),
-            'disk_number': int.from_bytes(data[4:6], byteorder='little'),
-            'cd_disk': int.from_bytes(data[6:8], byteorder='little'),
-            'disk_entries': int.from_bytes(data[8:10], byteorder='little'),
-            'cd_entries': int.from_bytes(data[10:12], byteorder='little'),
-            'cd_size': int.from_bytes(data[12:16], byteorder='little'),
-            'cd_offset': int.from_bytes(data[16:20], byteorder='little'),
-            'comment_length': int.from_bytes(data[20:22], byteorder='little')
-        }
-        
-        return fields
 
     def _parse_unicode_path(self, data):
         """Parse the Info-Zip Unicode Path extra field."""
@@ -145,63 +126,6 @@ class ZipHandler(BaseArchiveHandler):
                     result['gid'] = gid
         
         return result
-
-    def _parse_central_directory_header(self, data):
-        """Parse the central directory header of a ZIP entry."""
-        if len(data) < 46:
-            return {'error': 'Data too short for central directory header'}
-        
-        fields = {
-            'signature': data[0:4].hex(),
-            'version_made_by': int.from_bytes(data[4:6], byteorder='little'),
-            'version_needed': int.from_bytes(data[6:8], byteorder='little'),
-            'flags': int.from_bytes(data[8:10], byteorder='little'),
-            'compression_method': int.from_bytes(data[10:12], byteorder='little'),
-            'last_mod_time': int.from_bytes(data[12:14], byteorder='little'),
-            'last_mod_date': int.from_bytes(data[14:16], byteorder='little'),
-            'crc_32': int.from_bytes(data[16:20], byteorder='little'),
-            'compressed_size': int.from_bytes(data[20:24], byteorder='little'),
-            'uncompressed_size': int.from_bytes(data[24:28], byteorder='little'),
-            'filename_length': int.from_bytes(data[28:30], byteorder='little'),
-            'extra_field_length': int.from_bytes(data[30:32], byteorder='little'),
-            'comment_length': int.from_bytes(data[32:34], byteorder='little'),
-            'disk_number_start': int.from_bytes(data[34:36], byteorder='little'),
-            'internal_file_attr': int.from_bytes(data[36:38], byteorder='little'),
-            'external_file_attr': int.from_bytes(data[38:42], byteorder='little'),
-            'local_header_offset': int.from_bytes(data[42:46], byteorder='little')
-        }
-        
-        return fields
-
-    def _parse_local_file_header(self, data):
-        """Parse the local file header of a ZIP entry."""
-        if len(data) < 30:
-            return {'error': 'Data too short for local file header'}
-        
-        fields = {
-            'signature': data[0:4].hex(),
-            'version_needed': int.from_bytes(data[4:6], byteorder='little'),
-            'flags': int.from_bytes(data[6:8], byteorder='little'),
-            'compression_method': int.from_bytes(data[8:10], byteorder='little'),
-            'last_mod_time': int.from_bytes(data[10:12], byteorder='little'),
-            'last_mod_date': int.from_bytes(data[12:14], byteorder='little'),
-            'crc_32': int.from_bytes(data[14:18], byteorder='little'),
-            'compressed_size': int.from_bytes(data[18:22], byteorder='little'),
-            'uncompressed_size': int.from_bytes(data[22:26], byteorder='little'),
-            'filename_length': int.from_bytes(data[26:28], byteorder='little'),
-            'extra_field_length': int.from_bytes(data[28:30], byteorder='little')
-        }
-        
-        # Extract filename and extra field if available
-        if len(data) >= 30 + fields['filename_length']:
-            fields['filename'] = data[30:30+fields['filename_length']].decode('utf-8', errors='replace')
-        
-        if len(data) >= 30 + fields['filename_length'] + fields['extra_field_length'] and fields['extra_field_length'] > 0:
-            start = 30 + fields['filename_length']
-            end = start + fields['extra_field_length']
-            fields['extra'] = data[start:end]
-        
-        return fields
 
     def _get_compression_type_name(self, compress_type):
         """Get a human-readable name for the compression type."""
@@ -460,41 +384,160 @@ class ZipHandler(BaseArchiveHandler):
         day = date_value & 0x1F
         return f"{year}-{month:02d}-{day:02d}"
 
-    def _display_zip_header_fields(self, fields):
-        """Display formatted ZIP header fields."""
-        for field, value in fields.items():
-            if field == 'signature':
-                print(f"    {field:<20}: {value}")
-            elif field == 'flags':
-                flag_desc = self._describe_zip_flags(value)
-                print(f"    {field:<20}: {value} ({flag_desc})")
-            elif field == 'compression_method':
-                compress_type_str = self._get_compression_type_name(value)
-                print(f"    {field:<20}: {value} ({compress_type_str})")
-            elif field == 'last_mod_time':
-                time_str = self._decode_dos_time(value)
-                print(f"    {field:<20}: {value} ({time_str})")
-            elif field == 'last_mod_date':
-                date_str = self._decode_dos_date(value)
-                print(f"    {field:<20}: {value} ({date_str})")
-            elif field == 'external_file_attr':
-                mode = value >> 16
-                perm_str = self.format_mode(mode)
-                print(f"    {field:<20}: {value} (Unix mode: {oct(mode)} {perm_str})")
-            elif field == 'extra' and value:
-                hex_value = ' '.join(f'{b:02x}' for b in value)
-                print(f"    {field+'_hex':<20}: {hex_value}")
-            elif field == 'extra_parsed':
-                print(f"    {field:<20}:")
-                for k, v in value.items():
+    def _compare_lfh_cdh_fields(self, entry, lfh, cdh):
+        """Compare LFH and CDH fields using actual raw field values with zip_file context."""
+        
+        # Compare actual raw fields
+        fields_to_compare = [
+            ('version_needed', cdh.raw_fields['version_needed'], lfh.raw_fields['version_needed']),
+            ('flags', cdh.raw_fields['flags'], lfh.raw_fields['flags']),
+            ('compression_method', cdh.raw_fields['compression_method'], lfh.raw_fields['compression_method']),
+            ('last_mod_time', cdh.raw_fields['last_mod_time'], lfh.raw_fields['last_mod_time']),
+            ('last_mod_date', cdh.raw_fields['last_mod_date'], lfh.raw_fields['last_mod_date']),
+            ('crc_32', cdh.raw_fields['crc32'], lfh.raw_fields['crc32']),
+            ('compressed_size', cdh.raw_fields['compressed_size'], lfh.raw_fields['compressed_size']),
+            ('uncompressed_size', cdh.raw_fields['uncompressed_size'], lfh.raw_fields['uncompressed_size']),
+            ('filename', cdh.zipinfo.filename, lfh.zipinfo.filename),
+        ]
+        
+        for field_name, cdh_value, lfh_value in fields_to_compare:
+            match = "MATCH" if cdh_value == lfh_value else "MISMATCH"
+            print(f"    {field_name:<20}: {match} - CDH: {cdh_value}, LFH: {lfh_value}")
+
+    def _list_long(self, args, zip_file):
+        """Enhanced verbose listing using ExtendedZipFile capabilities."""
+        print(f"Verbose header information for {args.file}:")
+        
+        # Process each extended entry
+        extended_entries = zip_file.get_extended_infolist()
+        
+        for entry in extended_entries:
+            display_name = zip_file.get_display_name(entry)
+            print(f"\nFile: {display_name}")
+            print(f"{'-'*70}")
+            
+            if entry.is_orphaned_lfh:
+                if hasattr(entry, 'cdh_filename') and entry.cdh_filename:
+                    print("  Status: ORPHANED LFH (not in main central directory)")
+                else:
+                    print("  Status: ORPHANED LFH/CDH (not in any central directory)")
+            else:
+                print("  Status: Standard entry")
+            
+            # Show LFH information if available
+            if hasattr(entry, 'lfh_offset') and entry.lfh_offset is not None:
+                lfh = zip_file._find_lfh_by_offset(entry.lfh_offset)
+                if lfh:
+                    print(f"\n  Local File Header (offset: {entry.lfh_offset}):")
+                    self._display_lfh(lfh)
+            
+            # Show CDH information if available  
+            if hasattr(entry, 'cdh_filename') and entry.cdh_filename:
+                # Find the CDH entry for this file
+                cdh_info = self._find_cdh_for_entry(entry, zip_file)
+                if cdh_info:
+                    print(f"\n  Central Directory Header (offset: {cdh_info.offset}):")
+                    self._display_cdh(entry, cdh_info)
+                    
+                    # Show field comparison if we have both LFH and CDH
+                    if hasattr(entry, 'lfh_offset') and entry.lfh_offset is not None:
+                        lfh = zip_file._find_lfh_by_offset(entry.lfh_offset)
+                        if lfh:
+                            print(f"\n  Header Field Comparison (CDH vs LFH):")
+                            # We need to pass the zip_file context to access parsed_cdhs
+                            self._compare_lfh_cdh_fields(entry, lfh, cdh_info)
+            
+            print(f"{'-'*70}")
+
+    def _display_lfh(self, lfh):
+        """Display LFH."""
+        raw = lfh.raw_fields
+        zipinfo = lfh.zipinfo
+    
+        print(f"    signature           : {raw['signature'].hex()}")
+        print(f"    version_needed      : {raw['version_needed']}")
+        print(f"    flags               : {raw['flags']} ({self._describe_zip_flags(raw['flags'])})")
+        print(f"    compression_method  : {raw['compression_method']} ({self._get_compression_type_name(raw['compression_method'])})")
+        print(f"    last_mod_time       : {raw['last_mod_time']} ({self._decode_dos_time(raw['last_mod_time'])})")
+        print(f"    last_mod_date       : {raw['last_mod_date']} ({self._decode_dos_date(raw['last_mod_date'])})")
+        print(f"    crc_32              : {raw['crc32']}")
+        print(f"    compressed_size     : {raw['compressed_size']}")
+        print(f"    uncompressed_size   : {raw['uncompressed_size']}")
+        print(f"    filename_length     : {raw['filename_length']}")
+        print(f"    extra_field_length  : {raw['extra_length']}")
+        print(f"    filename            : {zipinfo.filename}")
+        if lfh.raw_extra:
+            hex_extra = ' '.join(f'{b:02x}' for b in lfh.raw_extra)
+            print(f"    extra_hex           : {hex_extra}")
+            extra_parsed = self._parse_extra_field(lfh.raw_extra)
+            if extra_parsed:
+                print(f"    extra_parsed        :")
+                for k, v in extra_parsed.items():
                     if isinstance(v, dict):
                         print(f"      {k}:")
                         for sk, sv in v.items():
                             print(f"        {sk}: {sv}")
                     else:
                         print(f"      {k}: {v}")
-            else:
-                print(f"    {field:<20}: {value}")
+
+    def _display_cdh(self, entry, cdh_info):
+        """Display CDH using raw fields (similar to _display_lfh)."""
+        raw = cdh_info.raw_fields
+        zipinfo = cdh_info.zipinfo
+        
+        print(f"    signature           : {raw['signature'].hex()}")
+        print(f"    version_made_by     : {raw['version_made_by']}")
+        print(f"    version_needed      : {raw['version_needed']}")
+        print(f"    flags               : {raw['flags']} ({self._describe_zip_flags(raw['flags'])})")
+        print(f"    compression_method  : {raw['compression_method']} ({self._get_compression_type_name(raw['compression_method'])})")
+        print(f"    last_mod_time       : {raw['last_mod_time']} ({self._decode_dos_time(raw['last_mod_time'])})")
+        print(f"    last_mod_date       : {raw['last_mod_date']} ({self._decode_dos_date(raw['last_mod_date'])})")
+        print(f"    crc_32              : {raw['crc32']}")
+        print(f"    compressed_size     : {raw['compressed_size']}")
+        print(f"    uncompressed_size   : {raw['uncompressed_size']}")
+        print(f"    filename_length     : {raw['filename_length']}")
+        print(f"    extra_field_length  : {raw['extra_length']}")
+        print(f"    comment_length      : {raw['comment_length']}")
+        print(f"    disk_number_start   : {raw['disk_start']}")
+        print(f"    internal_file_attr  : {raw['internal_attr']}")
+        mode = raw['external_attr'] >> 16
+        perm_str = self.format_mode(mode)
+        print(f"    external_file_attr  : {raw['external_attr']} (Unix mode: {oct(mode)} {perm_str})")
+        print(f"    local_header_offset : {raw['lfh_offset']}")
+        print(f"    filename            : {zipinfo.filename}")
+        
+        # Show extra field if present
+        if raw['extra']:
+            hex_extra = ' '.join(f'{b:02x}' for b in raw['extra'])
+            print(f"    extra_hex           : {hex_extra}")
+            extra_parsed = self._parse_extra_field(raw['extra'])
+            if extra_parsed:
+                print(f"    extra_parsed        :")
+                for k, v in extra_parsed.items():
+                    if isinstance(v, dict):
+                        print(f"      {k}:")
+                        for sk, sv in v.items():
+                            print(f"        {sk}: {sv}")
+                    else:
+                        print(f"      {k}: {v}")
+
+    def _find_cdh_for_entry(self, entry, zip_file):
+        """Find CDH information for an entry."""
+        # For standard entries, we know they have CDH info
+        if not entry.is_orphaned_lfh:
+            # Try to find the CDH in parsed_cdhs that corresponds to this entry
+            for cdh in zip_file.parsed_cdhs:
+                if (hasattr(entry, 'header_offset') and 
+                    cdh.lfh_offset == entry.header_offset):
+                    return cdh  # Return the full ParsedCDH object
+        else:
+            # For orphaned entries, check if we found a matching CDH
+            # TODO: What if multiple CDH reference the same LFH?
+            if hasattr(entry, 'lfh_offset'):
+                for cdh in zip_file.parsed_cdhs:
+                    if cdh.lfh_offset == entry.lfh_offset:
+                        return cdh  # Return the full ParsedCDH object
+        return None
 
     def add(self, args):
         """Add a file or symlink to the ZIP archive."""
@@ -669,7 +712,7 @@ class ZipHandler(BaseArchiveHandler):
             return
         
         # Extract the file, append content, and replace it
-        with zipfile.ZipFile(args.file, "r") as zip_ref:
+        with ExtendedZipFile(args.file, "r") as zip_ref:
             if args.path not in zip_ref.namelist():
                 print(f"Error: {args.path} not found in the archive")
                 return
@@ -718,7 +761,7 @@ class ZipHandler(BaseArchiveHandler):
             return
         
         # For ZIP, we need to extract, modify, and rewrite
-        with zipfile.ZipFile(args.file, "r") as zip_in:
+        with ExtendedZipFile(args.file, "r") as zip_in:
             if args.path not in zip_in.namelist():
                 print(f"Error: {args.path} not found in the archive")
                 return
@@ -730,11 +773,11 @@ class ZipHandler(BaseArchiveHandler):
             orig_info = zip_in.getinfo(args.path)
             
             # Get all other entries
-            entries = [entry for entry in zip_in.infolist() 
+            entries = [entry for entry in zip_in.get_extended_infolist() 
                     if entry.filename != args.path]
             
             # Create a new ZIP file
-            with zipfile.ZipFile(args.file + ".tmp", "w") as zip_out:
+            with ExtendedZipFile(args.file + ".tmp", "w") as zip_out:
                 # Copy all the other entries
                 for entry in entries:
                     zip_out.writestr(entry, zip_in.read(entry))
@@ -859,9 +902,9 @@ class ZipHandler(BaseArchiveHandler):
         
         # Check if the archive exists
         try:
-            with zipfile.ZipFile(args.file, "r") as zip_in:
+            with ExtendedZipFile(args.file, "r") as zip_in:
                 # Get the list of entries
-                entries = zip_in.infolist()
+                entries = zip_in.get_extended_infolist()
 
                 # Recursive
                 is_recursive = bool(args.recursive) if hasattr(args, 'recursive') else True
@@ -884,7 +927,7 @@ class ZipHandler(BaseArchiveHandler):
                                 if entry.filename not in paths_to_remove]
                 
                 # Create a new ZIP file
-                with zipfile.ZipFile(args.file + ".tmp", "w") as zip_out:
+                with ExtendedZipFile(args.file + ".tmp", "w") as zip_out:
                     # Copy all the other entries
                     for entry in entries_to_keep:
                         zip_out.writestr(entry, zip_in.read(entry))
@@ -905,144 +948,6 @@ class ZipHandler(BaseArchiveHandler):
         except zipfile.BadZipFile:
             print(f"Error: {args.file} is not a valid ZIP file")
 
-    def _list_long(self, args):
-        print(f"Verbose header information for {args.file}:")
-        
-        # First find the End of Central Directory (EOCD) record
-        with open(args.file, 'rb') as raw_file:
-            # Go to the end of the file and search backward for the EOCD signature
-            raw_file.seek(0, 2)  # Seek to the end
-            file_size = raw_file.tell()
-            
-            # Find the EOCD record (search backwards from the end)
-            eocd_offset = None
-            max_search = min(file_size, 65536)  # ZIP spec allows comment up to 65535 bytes
-            for i in range(max_search):
-                raw_file.seek(file_size - 22 - i)  # EOCD is at least 22 bytes
-                if raw_file.read(4) == b'PK\x05\x06':  # EOCD signature
-                    eocd_offset = file_size - 22 - i
-                    break
-            
-            if eocd_offset is None:
-                print("Error: Could not find End of Central Directory record")
-                return
-            
-            # Read the EOCD record
-            raw_file.seek(eocd_offset)
-            eocd_data = raw_file.read(22)
-            eocd_fields = self._parse_eocd_record(eocd_data)
-            
-            # Get the offset to the start of the central directory
-            cd_offset = eocd_fields.get('cd_offset')
-            cd_entries = eocd_fields.get('cd_entries')
-            
-            if cd_offset is None or cd_entries is None:
-                print("Error: Invalid End of Central Directory record")
-                return
-            
-            # Find central directory headers
-            cd_headers = []
-            raw_file.seek(cd_offset)
-            
-            for _ in range(cd_entries):
-                pos = raw_file.tell()
-                if raw_file.read(4) != b'PK\x01\x02':  # CDH signature
-                    print(f"Warning: Expected Central Directory Header at {pos}")
-                    continue
-                
-                raw_file.seek(pos)
-                cdh_data = raw_file.read(46)  # Fixed part of CDH
-                cdh_fields = self._parse_central_directory_header(cdh_data)
-                
-                filename_length = cdh_fields.get('filename_length', 0)
-                extra_length = cdh_fields.get('extra_field_length', 0)
-                comment_length = cdh_fields.get('comment_length', 0)
-                
-                # Read variable-length fields
-                if filename_length > 0:
-                    cdh_fields['filename'] = raw_file.read(filename_length).decode('utf-8', errors='replace')
-                
-                if extra_length > 0:
-                    cdh_fields['extra'] = raw_file.read(extra_length)
-                    # Parse the extra field
-                    cdh_fields['extra_parsed'] = self._parse_extra_field(cdh_fields['extra'])
-                
-                if comment_length > 0:
-                    cdh_fields['comment'] = raw_file.read(comment_length).decode('utf-8', errors='replace')
-                
-                # Store with offset and size
-                cd_headers.append({
-                    'offset': pos,
-                    'size': 46 + filename_length + extra_length + comment_length,
-                    'fields': cdh_fields
-                })
-            
-            # Process each entry
-            for header in cd_headers:
-                entry = header['fields']
-                print(f"\nFile: {entry['filename']}")
-                print(f"{'-'*70}")
-                
-                # Find matching CDH by LFH offset
-                matching_cdh = None
-                for cdh in cd_headers:
-                    if cdh['fields'].get('local_header_offset') == entry['local_header_offset']:
-                        matching_cdh = cdh
-                        break
-                # If failed (for some reason), try fallback via filename
-                if matching_cdh == None:
-                    for cdh in cd_headers:
-                        if cdh['fields'].get('filename') == entry['filename']:
-                            matching_cdh = cdh
-                            break
-                # Couldnt find CDH entry match by LFH offset or filename
-                if matching_cdh == None:
-                    print(f"Warning: failed to find central directory header for {entry['filename']}")
-
-                # Display LFH (using header_offset which points to LFH)
-                raw_file.seek(entry['local_header_offset'])
-                if raw_file.read(4) == b'PK\x03\x04':  # Verify LFH signature
-                    raw_file.seek(entry['local_header_offset'])
-                    lfh_data = raw_file.read(30)  # Fixed part of LFH
-                    lfh_fields = self._parse_local_file_header(lfh_data)
-                    
-                    filename_length = lfh_fields.get('filename_length', 0)
-                    extra_length = lfh_fields.get('extra_field_length', 0)
-                    
-                    # Read variable-length fields
-                    if filename_length > 0:
-                        lfh_fields['filename'] = raw_file.read(filename_length).decode('utf-8', errors='replace')
-                    
-                    if extra_length > 0:
-                        lfh_fields['extra'] = raw_file.read(extra_length)
-                        # Parse the extra field
-                        lfh_fields['extra_parsed'] = self._parse_extra_field(lfh_fields['extra'])
-                    
-                    print(f"\n  Local File Header (offset: {entry['local_header_offset']}):")
-                    self._display_zip_header_fields(lfh_fields)
-                
-                # Display matching CDH if found
-                if matching_cdh:
-                    print(f"\n  Central Directory Header (offset: {matching_cdh['offset']}):")
-                    self._display_zip_header_fields(matching_cdh['fields'])
-                    
-                    # Compare important fields between CDH and LFH
-                    if 'fields' in matching_cdh and lfh_fields:
-                        print("\n  Header Field Comparison (CDH vs LFH):")
-                        fields_to_compare = [
-                            'version_needed', 'flags', 'compression_method',
-                            'last_mod_time', 'last_mod_date', 'crc_32',
-                            'compressed_size', 'uncompressed_size', 'filename'
-                        ]
-                        
-                        for field in fields_to_compare:
-                            if field in matching_cdh['fields'] and field in lfh_fields:
-                                match = matching_cdh['fields'][field] == lfh_fields[field]
-                                status = "MATCH" if match else "MISMATCH"
-                                print(f"    {field:<20}: {status} - CDH: {matching_cdh['fields'][field]}, LFH: {lfh_fields[field]}")
-                
-                print(f"{'-'*70}")
-
     def list(self, args):
         """List the contents of the ZIP archive."""
         if not os.path.exists(args.file):
@@ -1050,15 +955,16 @@ class ZipHandler(BaseArchiveHandler):
             return
         
         try:
-            # Very verbose listing with all header information
-            if hasattr(args, 'longlong') and args.longlong or args.long == 2:
-                self._list_long(args)
-            with zipfile.ZipFile(args.file, "r") as zip_file:
-                entries = zip_file.infolist()
-                
+            with ExtendedZipFile(args.file, "r") as zip_file:
+                entries = zip_file.get_extended_infolist()
+
                 if not entries:
                     print(f"Archive {args.file} is empty")
                     return
+
+                # Very verbose listing with all header information
+                if hasattr(args, 'longlong') and args.longlong or args.long == 2:
+                    self._list_long(args, zip_file)
                 
                 if args.long:
                     print(f"{'Permissions':<12} {'Size':>10} {'Modified':>20} {'Name'}")
@@ -1074,8 +980,13 @@ class ZipHandler(BaseArchiveHandler):
                     
                     if args.long:
                         # Extract date and time
-                        date_time = datetime(*entry.date_time)
-                        date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
+                        try:
+                            date_time = datetime(*entry.date_time)
+                            date_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
+                        except Exception as e:
+                            if args.verbose:
+                                print(f"Error: invalid date in header: {entry.date_time}, {e}")
+                            date_str = "INVALID_DATE"
                         
                         # Get permissions 
                         # ZIP uses the high bits of external_attr for Unix permissions
@@ -1104,8 +1015,8 @@ class ZipHandler(BaseArchiveHandler):
                     else:
                         print(f"{entry.filename}")
         
-        except zipfile.BadZipFile:
-            print(f"Error: {args.file} is not a valid ZIP file")
+        except zipfile.BadZipFile as e:
+            print(f"Error: {args.file} is not a valid ZIP file ({e})")
 
     def read(self, args):
         """Read the contents of an entry."""
@@ -1114,8 +1025,8 @@ class ZipHandler(BaseArchiveHandler):
             return
         
         try:
-            with zipfile.ZipFile(args.file, "r") as zip_file:
-                entries = zip_file.infolist()
+            with ExtendedZipFile(args.file, "r") as zip_file:
+                entries = zip_file.get_extended_infolist()
                 current_index = 0
                 found = False
                 
@@ -1156,9 +1067,9 @@ class ZipHandler(BaseArchiveHandler):
             os.makedirs(args.output_dir, exist_ok=True)
         
         try:
-            with zipfile.ZipFile(args.file, "r") as zip_file:
+            with ExtendedZipFile(args.file, "r") as zip_file:
                 # Get list of entries to extract
-                entries = zip_file.infolist()
+                entries = zip_file.get_extended_infolist()
                 
                 # Filter entries if a specific path is specified
                 if args.path:
@@ -1282,7 +1193,7 @@ class ZipHandler(BaseArchiveHandler):
 
         # If the file doesn't exist yet, create an empty ZIP file first
         if not os.path.exists(args.file):
-            with zipfile.ZipFile(args.file, 'w') as zip_ref:
+            with ExtendedZipFile(args.file, 'w') as zip_ref:
                 pass  # Create empty ZIP
 
         # Read the existing ZIP file

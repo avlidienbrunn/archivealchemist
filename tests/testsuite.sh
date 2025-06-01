@@ -1284,6 +1284,87 @@ run_test "ZIP - Filename vs Unicode Path confusion" \
   "$ALCHEMIST test_zip_unicode_path_confusion.zip list -ll | grep -q $'path: b\'fake.txt\'' && \
    unzip -l test_zip_unicode_path_confusion.zip -l1 | grep -vq 'original.txt'"
 
+run_test "ZIP - List orphaned/multiple CDH LFH entry" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip list -ll | grep -q $'orphaned_alone.txt' && \
+   $ALCHEMIST test_complex_orphaned.zip list -ll | grep -qE -- $'-rw-------.*orphaned_with_cdh.txt' && \
+   unzip -l test_complex_orphaned.zip -l1 | grep -vq 'orphaned_alone.txt'"
+
+run_test "ZIP - Extract orphaned/multiple CDH LFH entry" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py && \
+   mkdir -p test_extract_orphan" \
+  "$ALCHEMIST test_complex_orphaned.zip extract --output-dir test_extract_orphan && \
+   ls -l test_extract_orphan/ | grep -v total | wc -l | grep -q 4 && \
+   cat test_extract_orphan/orphaned_alone.txt | grep -q 'This LFH has no CDH anywhere!' && \
+   cat test_extract_orphan/orphaned_with_cdh.txt | grep -q 'This LFH has a CDH but CDH is in EOCD comment'"
+
+run_test "ZIP - Remove orphaned/multiple CDH LFH entry" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip rm orphaned_with_cdh.txt && \
+   $ALCHEMIST test_complex_orphaned.zip ls | grep -qv 'orphaned_with_cdh.txt' && \
+   $ALCHEMIST test_complex_orphaned.zip ls | grep -q 'orphaned_alone.txt'"
+
+run_test "ZIP - Replace orphaned/multiple CDH LFH entry" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip replace orphaned_with_cdh.txt --content 'REPLACED CONTENT FOR ORPHANED FILE' && \
+   cat <($ALCHEMIST test_complex_orphaned.zip cat orphaned_with_cdh.txt) | grep -q 'REPLACED CONTENT FOR ORPHANED FILE' && \
+   $ALCHEMIST test_complex_orphaned.zip ls | grep -q 'orphaned_with_cdh.txt' && \
+   $ALCHEMIST test_complex_orphaned.zip ls | grep -q 'orphaned_alone.txt'"
+
+run_test "ZIP - Replace orphaned LFH-only entry" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip replace orphaned_alone.txt --content 'REPLACED ORPHANED ALONE CONTENT' && \
+   cat <($ALCHEMIST test_complex_orphaned.zip cat orphaned_alone.txt) | grep -q 'REPLACED ORPHANED ALONE CONTENT' && \
+   $ALCHEMIST test_complex_orphaned.zip ls | grep -q 'orphaned_alone.txt'"
+
+run_test "ZIP - Append to orphaned/multiple CDH LFH entry" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip append orphaned_with_cdh.txt --content ' + APPENDED TO ORPHANED' && \
+   cat <($ALCHEMIST test_complex_orphaned.zip cat orphaned_with_cdh.txt) | grep -q 'This LFH has a CDH but CDH is in EOCD comment + APPENDED TO ORPHANED' && \
+   $ALCHEMIST test_complex_orphaned.zip ls | grep -q 'orphaned_with_cdh.txt'"
+
+run_test "ZIP - Append to orphaned LFH-only entry" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip append orphaned_alone.txt --content ' + APPENDED ALONE' && \
+   cat <($ALCHEMIST test_complex_orphaned.zip cat orphaned_alone.txt) | grep -q 'This LFH has no CDH anywhere! + APPENDED ALONE' && \
+   $ALCHEMIST test_complex_orphaned.zip ls | grep -q 'orphaned_alone.txt'"
+
+run_test "ZIP - Modify orphaned/multiple CDH LFH entry permissions" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip modify orphaned_with_cdh.txt --mode 0755 && \
+   $ALCHEMIST test_complex_orphaned.zip list -l1 | grep 'orphaned_with_cdh.txt' | grep -q 'rwxr-xr-x' && \
+   cat <($ALCHEMIST test_complex_orphaned.zip cat orphaned_with_cdh.txt) | grep -q 'This LFH has a CDH but CDH is in EOCD comment'"
+
+run_test "ZIP - Modify orphaned LFH-only entry to symlink" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip modify orphaned_alone.txt --symlink '/etc/target' && \
+   $ALCHEMIST test_complex_orphaned.zip list -l1 | grep 'orphaned_alone.txt' | grep -q 'l' && \
+   cat <($ALCHEMIST test_complex_orphaned.zip cat orphaned_alone.txt) | grep -q '/etc/target'"
+
+run_test "ZIP - Modify normal entry then verify orphaned entries unchanged" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip modify normal.txt --mode 0777 && \
+   $ALCHEMIST test_complex_orphaned.zip list -l1 | grep 'normal.txt' | grep -q 'rwxrwxrwx' && \
+   cat <($ALCHEMIST test_complex_orphaned.zip cat orphaned_alone.txt) | grep -q 'This LFH has no CDH anywhere!' && \
+   cat <($ALCHEMIST test_complex_orphaned.zip cat orphaned_with_cdh.txt) | grep -q 'This LFH has a CDH but CDH is in EOCD comment'"
+
+run_test "ZIP - Replace orphaned entry with symlink" \
+  "rm -f test_complex_orphaned.zip && \
+   python3 generate_orphaned_fh.py" \
+  "$ALCHEMIST test_complex_orphaned.zip replace orphaned_with_cdh.txt --symlink '/tmp/replaced_target' && \
+   $ALCHEMIST test_complex_orphaned.zip list -l1 | grep 'orphaned_with_cdh.txt' | grep -q 'l.*orphaned_with_cdh.txt' && \
+   cat <($ALCHEMIST test_complex_orphaned.zip cat orphaned_with_cdh.txt) | grep -q '/tmp/replaced_target'"
+
 # Print summary
 echo -e "${YELLOW}Test Summary: ${TESTS_PASSED}/${TESTS_TOTAL} tests passed${NC}"
 if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then
