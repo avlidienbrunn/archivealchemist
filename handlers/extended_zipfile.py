@@ -258,14 +258,6 @@ class ExtendedZipFile(zipfile.ZipFile):
             # Set date_time using zipfile's logic
             zipinfo.date_time = self._dos_date_time_to_tuple(last_mod_date, last_mod_time)
             
-            # Parse extra field using zipfile's method
-            if extra_bytes:
-                try:
-                    zipinfo._decodeExtra()
-                except zipfile.BadZipFile:
-                    # Skip malformed extra fields
-                    pass
-            
             # Calculate data offset
             data_offset = filename_end + extra_length
             
@@ -374,14 +366,6 @@ class ExtendedZipFile(zipfile.ZipFile):
             
             # Set date_time using zipfile's logic
             zipinfo.date_time = self._dos_date_time_to_tuple(last_mod_date, last_mod_time)
-            
-            # Parse extra field using zipfile's method
-            if extra_bytes:
-                try:
-                    zipinfo._decodeExtra()
-                except zipfile.BadZipFile:
-                    # Skip malformed extra fields
-                    pass
             
             return ParsedCDH(
                 offset=offset,
