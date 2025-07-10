@@ -945,8 +945,8 @@ class ZipHandler(BaseArchiveHandler):
                         for path in paths_to_remove:
                             print(f"  - {path}")
         
-        except zipfile.BadZipFile:
-            print(f"Error: {args.file} is not a valid ZIP file")
+        except zipfile.BadZipFile as e:
+            print(f"Error: {args.file} is not a valid ZIP file ({e})")
 
     def list(self, args):
         """List the contents of the ZIP archive."""
@@ -1053,8 +1053,8 @@ class ZipHandler(BaseArchiveHandler):
             if not found:
                 print(f"Error: could not find {args.path}, index {args.index} in archive")
         
-        except zipfile.BadZipFile:
-            print(f"Error: {args.file} is not a valid ZIP file")
+        except zipfile.BadZipFile as e:
+            print(f"Error: {args.file} is not a valid ZIP file ({e})")
 
     def extract(self, args):
         """Extract files from the ZIP archive."""
@@ -1172,8 +1172,8 @@ class ZipHandler(BaseArchiveHandler):
                 if args.verbose:
                     print(f"Extraction complete: {len(entries)} entries extracted to {args.output_dir}")
         
-        except zipfile.BadZipFile:
-            print(f"Error: {args.file} is not a valid ZIP file")
+        except zipfile.BadZipFile as e:
+            print(f"Error: {args.file} is not a valid ZIP file ({e})")
         except Exception as e:
             print(f"Error extracting {args.file}: {e}")
 

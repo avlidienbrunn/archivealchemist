@@ -18,3 +18,4 @@
 * other pkware extra fields (zip64 pointing to one LFH, "normal" pointing to another)
 * tar support for POSIX.1-2001 / pax
 * maintain "orphanness" of zip entries when modifying archive
+* deal with invalid pointers in CDH
