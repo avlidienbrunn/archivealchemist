@@ -59,6 +59,9 @@ class ExtendedZipFile(zipfile.ZipFile):
     """Extended ZipFile with support for malformed ZIP structures."""
     
     def __init__(self, *args, **kwargs):
+        # Extract orphaned_mode from kwargs before passing to parent
+        self.orphaned_mode = kwargs.pop('orphaned_mode', False)
+        
         self.pk_signatures = []         # All PK signatures found in file
         self.parsed_lfhs = []           # All LFH entries found
         self.parsed_cdhs = []           # All CDH entries found  
@@ -435,22 +438,24 @@ class ExtendedZipFile(zipfile.ZipFile):
             self.extended_infolist.append(extended)
         
         # Find orphaned LFH entries (not referenced by standard zipfile)
-        for lfh in self.parsed_lfhs:
-            if lfh.offset not in standard_lfh_offsets:
-                # This is an orphaned LFH
-                extended = self._create_extended_zipinfo_from_lfh(lfh)
-                extended.is_orphaned_lfh = True
-                extended.is_orphaned_cdh = True
-                
-                # Try to find matching CDH for this orphaned LFH
-                matching_cdh = self._find_matching_cdh_for_lfh(lfh)
-                if matching_cdh:
-                    # Merge CDH information into the extended info
-                    extended = self._merge_cdh_into_extended_info(extended, matching_cdh)
-                    extended.is_orphaned_cdh = False
-                
-                self.extended_infolist.append(extended)
-                self.orphaned_lfhs.append(lfh)
+        # Only include orphaned entries if orphaned_mode is enabled
+        if self.orphaned_mode:
+            for lfh in self.parsed_lfhs:
+                if lfh.offset not in standard_lfh_offsets:
+                    # This is an orphaned LFH
+                    extended = self._create_extended_zipinfo_from_lfh(lfh)
+                    extended.is_orphaned_lfh = True
+                    extended.is_orphaned_cdh = True
+                    
+                    # Try to find matching CDH for this orphaned LFH
+                    matching_cdh = self._find_matching_cdh_for_lfh(lfh)
+                    if matching_cdh:
+                        # Merge CDH information into the extended info
+                        extended = self._merge_cdh_into_extended_info(extended, matching_cdh)
+                        extended.is_orphaned_cdh = False
+                    
+                    self.extended_infolist.append(extended)
+                    self.orphaned_lfhs.append(lfh)
 
     def _find_matching_cdh_for_lfh(self, lfh):
         """Find a CDH entry that points to this LFH offset."""
@@ -512,6 +517,10 @@ class ExtendedZipFile(zipfile.ZipFile):
         
         # Extract Unicode path from available sources
         extended.unicode_path = self._extract_unicode_path(extended)
+        
+        # Standard entries are never orphaned
+        extended.is_orphaned_lfh = False
+        extended.is_orphaned_cdh = False
 
         return extended
     

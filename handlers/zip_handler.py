@@ -17,17 +17,22 @@ warnings.filterwarnings("ignore", category=UserWarning, module="zipfile", messag
 class ZipHandler(BaseArchiveHandler):
     """Handler for ZIP archives."""
     
-    def __init__(self):
-        """Initialize the ZIP handler."""
-        pass
+    def __init__(self, orphaned_mode=False):
+        """Initialize the ZIP handler.
+        
+        Args:
+            orphaned_mode: If True, use ExtendedZipFile with orphaned entry detection.
+                          If False, use standard zipfile.ZipFile.
+        """
+        self.orphaned_mode = orphaned_mode
     
     def _create_new_archive(self, file_path):
         """Create a new ZIP archive."""
-        return ExtendedZipFile(file_path, "w")
+        return ExtendedZipFile(file_path, "w", orphaned_mode=self.orphaned_mode)
     
     def _open_existing_archive(self, file_path, mode="a"):
         """Open an existing ZIP archive."""
-        return ExtendedZipFile(file_path, mode)
+        return ExtendedZipFile(file_path, mode, orphaned_mode=self.orphaned_mode)
     
     def _parse_extra_field(self, extra_data):
         """Parse the extra field data in ZIP headers."""
@@ -430,6 +435,12 @@ class ZipHandler(BaseArchiveHandler):
                 if lfh:
                     print(f"\n  Local File Header (offset: {entry.lfh_offset}):")
                     self._display_lfh(lfh)
+            else:
+                if hasattr(entry, 'header_offset') and entry.header_offset is not None:
+                    lfh = zip_file._find_lfh_by_offset(entry.header_offset)
+                    if lfh:
+                        print(f"\n  Local File Header (offset: {entry.header_offset}):")
+                        self._display_lfh(lfh)
             
             # Show CDH information if available  
             if hasattr(entry, 'cdh_filename') and entry.cdh_filename:
@@ -712,7 +723,7 @@ class ZipHandler(BaseArchiveHandler):
             return
         
         # Extract the file, append content, and replace it
-        with ExtendedZipFile(args.file, "r") as zip_ref:
+        with self._open_existing_archive(args.file, "r") as zip_ref:
             if args.path not in zip_ref.namelist():
                 print(f"Error: {args.path} not found in the archive")
                 return
@@ -761,7 +772,7 @@ class ZipHandler(BaseArchiveHandler):
             return
         
         # For ZIP, we need to extract, modify, and rewrite
-        with ExtendedZipFile(args.file, "r") as zip_in:
+        with self._open_existing_archive(args.file, "r") as zip_in:
             if args.path not in zip_in.namelist():
                 print(f"Error: {args.path} not found in the archive")
                 return
@@ -777,7 +788,7 @@ class ZipHandler(BaseArchiveHandler):
                     if entry.filename != args.path]
             
             # Create a new ZIP file
-            with ExtendedZipFile(args.file + ".tmp", "w") as zip_out:
+            with self._create_new_archive(args.file + ".tmp") as zip_out:
                 # Copy all the other entries
                 for entry in entries:
                     zip_out.writestr(entry, zip_in.read(entry))
@@ -902,7 +913,7 @@ class ZipHandler(BaseArchiveHandler):
         
         # Check if the archive exists
         try:
-            with ExtendedZipFile(args.file, "r") as zip_in:
+            with self._open_existing_archive(args.file, "r") as zip_in:
                 # Get the list of entries
                 entries = zip_in.get_extended_infolist()
 
@@ -927,7 +938,7 @@ class ZipHandler(BaseArchiveHandler):
                                 if entry.filename not in paths_to_remove]
                 
                 # Create a new ZIP file
-                with ExtendedZipFile(args.file + ".tmp", "w") as zip_out:
+                with self._create_new_archive(args.file + ".tmp") as zip_out:
                     # Copy all the other entries
                     for entry in entries_to_keep:
                         zip_out.writestr(entry, zip_in.read(entry))
@@ -955,7 +966,7 @@ class ZipHandler(BaseArchiveHandler):
             return
         
         try:
-            with ExtendedZipFile(args.file, "r") as zip_file:
+            with self._open_existing_archive(args.file, "r") as zip_file:
                 entries = zip_file.get_extended_infolist()
 
                 if not entries:
@@ -1025,7 +1036,7 @@ class ZipHandler(BaseArchiveHandler):
             return
         
         try:
-            with ExtendedZipFile(args.file, "r") as zip_file:
+            with self._open_existing_archive(args.file, "r") as zip_file:
                 entries = zip_file.get_extended_infolist()
                 current_index = 0
                 found = False
@@ -1067,7 +1078,7 @@ class ZipHandler(BaseArchiveHandler):
             os.makedirs(args.output_dir, exist_ok=True)
         
         try:
-            with ExtendedZipFile(args.file, "r") as zip_file:
+            with self._open_existing_archive(args.file, "r") as zip_file:
                 # Get list of entries to extract
                 entries = zip_file.get_extended_infolist()
                 
@@ -1193,7 +1204,7 @@ class ZipHandler(BaseArchiveHandler):
 
         # If the file doesn't exist yet, create an empty ZIP file first
         if not os.path.exists(args.file):
-            with ExtendedZipFile(args.file, 'w') as zip_ref:
+            with self._create_new_archive(args.file) as zip_ref:
                 pass  # Create empty ZIP
 
         # Read the existing ZIP file

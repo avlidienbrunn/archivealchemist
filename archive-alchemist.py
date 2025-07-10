@@ -18,7 +18,8 @@ class ArchiveAlchemist:
     def __init__(self):
         self.parser = self._create_parser()
         self.handlers = {
-            "zip": ZipHandler(),
+            "zip": ZipHandler(orphaned_mode=False),
+            "ziporphan": ZipHandler(orphaned_mode=True),
             "tar": TarHandler(compressed=False),
             "tar.gz": TarHandler(compressed="gz"),
             "tar.xz": TarHandler(compressed="xz"),
@@ -124,6 +125,8 @@ class ArchiveAlchemist:
                 setattr(namespace, 'type_specified', True)
         parser.add_argument("-t", "--type", choices=["zip", "tar", "tar.gz", "tar.xz", "tar.bz2"], default="zip",
                   action=TypeAction, help="Archive type (default: auto-detect from file extension)")
+        parser.add_argument("-fo", "--find-orphaned", action="store_true", 
+                  help="Find orphaned entries in ZIP files (enables deep scanning for corrupt/malicious archives)")
         
         # Subcommands
         subparsers = parser.add_subparsers(dest="command", help="Command to execute")
@@ -227,7 +230,11 @@ class ArchiveAlchemist:
     
     def _get_handler(self, args):
         """Get the appropriate handler for the archive type."""
-        return self.handlers[args.type]
+        handler_type = args.type
+        # Use ziporphan handler when find_orphaned flag is set and type is zip
+        if handler_type == "zip" and hasattr(args, 'find_orphaned') and args.find_orphaned:
+            handler_type = "ziporphan"
+        return self.handlers[handler_type]
     
     def run(self):
         """Run the main program."""

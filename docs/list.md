@@ -9,7 +9,7 @@ The `list` (or the alias, `ls`) command displays the contents of an archive, sho
 ## Syntax
 
 ```bash
-./archive-alchemist.py <archive> [-t <type>] list [options]
+./archive-alchemist.py <archive> [-t <type>] [--find-orphaned] list [options]
 ```
 
 ## Options
@@ -19,7 +19,33 @@ The `list` (or the alias, `ls`) command displays the contents of an archive, sho
 | `--long`, `-l` | Show detailed listing with file attributes | 1 (True) | `--long 0` |
 | `--longlong`, `-ll` | Show *very* detailed listing with file attribute/header information | 1 (True) | `--long 0` |
 
+## Global Options
+
+| Option | Description | Default | Example |
+|--------|-------------|---------|---------|
+| `--find-orphaned`, `-fo` | Find orphaned entries in ZIP files (scans for LFH headers, ignoring zip format validity) | False | `--find-orphaned` |
+
 ## Examples
+
+### Basic Listing
+```bash
+# List contents of a ZIP archive
+./archive-alchemist.py archive.zip list
+
+# List contents with detailed information
+./archive-alchemist.py archive.zip list --longlong
+```
+
+### Orphaned Entry Detection
+```bash
+# Normal listing (default) - shows only standard entries
+./archive-alchemist.py suspicious.zip list
+
+# Orphaned mode - shows all entries including orphaned ones (not linked in standard central directory)
+./archive-alchemist.py suspicious.zip --find-orphaned list
+```
+
+**NOTE**: Orphaned mode may show false positives from ZIP files stored inside other ZIP files, if no compression is used.
 
 ## Output Format
 
