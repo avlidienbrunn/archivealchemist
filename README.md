@@ -19,8 +19,8 @@ Archive Alchemist is a tool for creating specially crafted archives to test extr
 
 ```bash
 # Clone the repository
-git clone https://github.com/avlidienbrunn/archive-alchemist.git
-cd archive-alchemist
+git clone https://github.com/avlidienbrunn/archivealchemist.git
+cd archivealchemist
 
 # Make the script executable
 chmod +x archive-alchemist.py
