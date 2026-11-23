@@ -41,7 +41,15 @@ class ArchiveAlchemist:
                 # ZIP: Starts with 'PK\x03\x04'
                 if magic_bytes.startswith(b'PK\x03\x04'):
                     return 'zip'
-                
+
+                # PKZIP archive_2: Starts with 'PK\x05\x06'
+                if magic_bytes.startswith(b'PK\x05\x06'):
+                    return 'zip'
+
+                # PKZIP archive_3: Starts with 'PK\x07\x08'
+                if magic_bytes.startswith(b'PK\x07\x08'):
+                    return 'zip'
+
                 # GZIP: Starts with 0x1F 0x8B
                 if magic_bytes.startswith(b'\x1F\x8B'):
                     return 'tar.gz'
